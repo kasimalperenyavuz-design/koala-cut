@@ -47,6 +47,23 @@ async def lifespan(app: FastAPI):
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     # Prune artifacts older than 24 hours on launch
     storage_manager.cleanup_old_files(max_age_seconds=86400)
+
+    # Suppress benign Windows client disconnect noise (WinError 10054)
+    loop = asyncio.get_running_loop()
+    orig_handler = loop.get_exception_handler()
+
+    def _ignore_client_disconnects(loop, context):
+        exc = context.get("exception")
+        if isinstance(exc, ConnectionResetError) or (
+            isinstance(exc, OSError) and getattr(exc, "winerror", None) == 10054
+        ):
+            return
+        if orig_handler:
+            orig_handler(loop, context)
+        else:
+            loop.default_exception_handler(context)
+
+    loop.set_exception_handler(_ignore_client_disconnects)
     yield
 
 

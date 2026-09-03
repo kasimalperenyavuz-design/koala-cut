@@ -23,7 +23,7 @@ from app.services.storage import get_storage_dirs
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.1.0"
 DEFAULT_GITHUB_REPO = "kasimalperenyavuz-design/koala-cut"
 
 

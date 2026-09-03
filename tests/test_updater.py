@@ -36,7 +36,7 @@ def test_update_status_endpoint(client):
     data = res.json()
     assert "current_version" in data
     assert "repo" in data
-    assert data["current_version"] == "1.0.0"
+    assert data["current_version"] == "1.1.0"
 
 
 def test_update_config_endpoint(client):
@@ -54,14 +54,14 @@ def test_update_config_endpoint(client):
 async def test_check_updates_with_mock_api(client):
     """Verify check_for_updates parses a newer release payload correctly."""
     mock_release = {
-        "tag_name": "v1.1.0",
-        "name": "koala-cut v1.1.0 - Performans Güncellemesi",
+        "tag_name": "v1.2.0",
+        "name": "koala-cut v1.2.0 - Performans Güncellemesi",
         "body": "- Daha hızlı video kesme\n- Yeni sıkıştırma filtreleri",
         "published_at": "2026-09-04T00:00:00Z",
         "assets": [
             {
                 "name": "koala-cut.exe",
-                "browser_download_url": "https://github.com/myuser/koala/releases/download/v1.1.0/koala-cut.exe",
+                "browser_download_url": "https://github.com/myuser/koala/releases/download/v1.2.0/koala-cut.exe",
                 "size": 43500000,
             }
         ],
@@ -76,7 +76,7 @@ async def test_check_updates_with_mock_api(client):
         assert res.status_code == 200
         data = res.json()
         assert data["update_available"] is True
-        assert data["latest_version"] == "1.1.0"
+        assert data["latest_version"] == "1.2.0"
         assert "koala-cut.exe" in data["download_url"]
         assert data["asset_size"] == 43500000
 
