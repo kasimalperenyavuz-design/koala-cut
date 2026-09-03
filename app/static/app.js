@@ -116,6 +116,16 @@
     cutSegmentsCount: document.getElementById('cut-segments-count'),
     timelineCutMarkers: document.getElementById('timeline-cut-markers'),
 
+    // Stüdyo Inspector Tabs
+    tabNavFormat: document.getElementById('tab-nav-format'),
+    tabNavCompress: document.getElementById('tab-nav-compress'),
+    tabNavCut: document.getElementById('tab-nav-cut'),
+    tabNavAudio: document.getElementById('tab-nav-audio'),
+    tabPanelFormat: document.getElementById('tab-panel-format'),
+    tabPanelCompress: document.getElementById('tab-panel-compress'),
+    tabPanelCut: document.getElementById('tab-panel-cut'),
+    tabPanelAudio: document.getElementById('tab-panel-audio'),
+
     // Aspect & Fit
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
     aspectCurrentBadge: document.getElementById('aspect-current-badge'),
@@ -292,13 +302,13 @@
     } else if (targetView === 'progress') {
       dom.viewProgress.classList.remove('hidden');
       dom.headerStatusBadge.classList.remove('hidden');
-      dom.headerFileName.textContent = `Processing: ${state.filename}`;
+      dom.headerFileName.textContent = `İşleniyor: ${state.filename}`;
       dom.btnHeaderNew.classList.add('hidden');
       dom.videoPlayer.pause();
     } else if (targetView === 'complete') {
       dom.viewComplete.classList.remove('hidden');
       dom.headerStatusBadge.classList.remove('hidden');
-      dom.headerFileName.textContent = `Ready: ${state.filename}`;
+      dom.headerFileName.textContent = `Hazır: ${state.filename}`;
       dom.btnHeaderNew.classList.remove('hidden');
     }
 
@@ -343,19 +353,19 @@
     dom.btnLoadDemo.addEventListener('click', async () => {
       dom.btnLoadDemo.disabled = true;
       dom.uploadProgressCard.classList.remove('hidden');
-      dom.uploadStatusText.textContent = 'Generating sample video with FFmpeg...';
+      dom.uploadStatusText.textContent = 'FFmpeg ile örnek demo video oluşturuluyor...';
       dom.uploadProgressBar.style.width = '60%';
       dom.uploadPercentage.textContent = '60%';
 
       try {
         const res = await fetch('/api/demo', { method: 'POST' });
         if (!res.ok) {
-          throw new Error(`Failed to load demo video (${res.status})`);
+          throw new Error(`Örnek video yüklenemedi (${res.status})`);
         }
         const data = await res.json();
         dom.uploadProgressBar.style.width = '100%';
         dom.uploadPercentage.textContent = '100%';
-        dom.uploadStatusText.textContent = 'Demo video ready!';
+        dom.uploadStatusText.textContent = 'Demo video hazır!';
         setTimeout(() => loadMediaIntoEditor(data), 350);
       } catch (err) {
         showToast(err.message, 'error');
@@ -375,7 +385,7 @@
     const validExtensions = ['.mp4', '.mov', '.mkv', '.avi', '.webm'];
     const ext = '.' + file.name.split('.').pop().toLowerCase();
     if (!validExtensions.includes(ext)) {
-      showToast(`Unsupported file format. Please upload: ${validExtensions.join(', ')}`, 'error');
+      showToast(`Desteklenmeyen dosya formatı. Lütfen yükleyin: ${validExtensions.join(', ')}`, 'error');
       return;
     }
 
@@ -385,7 +395,7 @@
     dom.uploadProgressCard.classList.remove('hidden');
     dom.uploadProgressBar.style.width = '0%';
     dom.uploadPercentage.textContent = '0%';
-    dom.uploadStatusText.textContent = `Uploading ${file.name}...`;
+    dom.uploadStatusText.textContent = `${file.name} yükleniyor...`;
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload', true);
@@ -396,7 +406,7 @@
         dom.uploadProgressBar.style.width = `${percent}%`;
         dom.uploadPercentage.textContent = `${percent}%`;
         if (percent >= 95) {
-          dom.uploadStatusText.textContent = 'Probing media streams & codec...';
+          dom.uploadStatusText.textContent = 'Medya bilgileri ve video akışı taranıyor...';
         }
       }
     };
@@ -405,17 +415,17 @@
       if (xhr.status >= 200 && xhr.status < 300) {
         dom.uploadProgressBar.style.width = '100%';
         dom.uploadPercentage.textContent = '100%';
-        dom.uploadStatusText.textContent = 'Media probed successfully!';
+        dom.uploadStatusText.textContent = 'Video başarıyla analiz edildi!';
 
         try {
           const data = JSON.parse(xhr.responseText);
           setTimeout(() => loadMediaIntoEditor(data), 300);
         } catch (err) {
-          showToast('Failed to parse upload response.', 'error');
+          showToast('Yükleme yanıtı ayrıştırılamadı.', 'error');
           dom.uploadProgressCard.classList.add('hidden');
         }
       } else {
-        let errDetail = 'Upload failed';
+        let errDetail = 'Video yükleme başarısız';
         try {
           const errRes = JSON.parse(xhr.responseText);
           errDetail = errRes.detail || errDetail;
@@ -426,7 +436,7 @@
     };
 
     xhr.onerror = () => {
-      showToast('Network error while uploading video.', 'error');
+      showToast('Video yüklenirken ağ hatası oluştu.', 'error');
       dom.uploadProgressCard.classList.add('hidden');
     };
 
@@ -504,7 +514,7 @@
     updateTimelineHandles();
     updateTrimBadge();
     switchView('editor');
-    showToast(`Loaded ${state.filename}`, 'success');
+    showToast(`Video yüklendi: ${state.filename}`, 'success');
   }
 
   // ---------------------------------------------------------------------------
@@ -715,7 +725,7 @@
       renderCutSegments();
       updateTimelineHandles();
       updateTrimBadge();
-      showToast('Trim reset to full duration and cuts cleared.', 'info');
+      showToast('Kırpma ve çıkarılan bölümler sıfırlandı.', 'info');
     });
   }
 
@@ -842,12 +852,37 @@
       dom.trimSavingsPill.textContent = `Toplam %${savedPct} kısaltıldı${countNote}`;
       dom.trimSavingsPill.className = 'text-[11px] text-emerald-400 font-mono font-medium';
     } else {
-      dom.trimSavingsPill.textContent = 'Preserving 100% of video';
+      dom.trimSavingsPill.textContent = 'Videonun tamamı korunuyor';
       dom.trimSavingsPill.className = 'text-[11px] text-slate-400 font-mono';
     }
 
     updateExportSummary();
     updateSavingsEstimate();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stüdyo Inspector Sekmeleri (Tabs)
+  // ---------------------------------------------------------------------------
+  function initInspectorTabs() {
+    const tabs = [
+      { nav: dom.tabNavFormat, panel: dom.tabPanelFormat },
+      { nav: dom.tabNavCompress, panel: dom.tabPanelCompress },
+      { nav: dom.tabNavCut, panel: dom.tabPanelCut },
+      { nav: dom.tabNavAudio, panel: dom.tabPanelAudio },
+    ];
+
+    tabs.forEach(({ nav, panel }) => {
+      if (!nav || !panel) return;
+      nav.addEventListener('click', () => {
+        tabs.forEach((t) => {
+          if (t.nav) t.nav.classList.remove('active');
+          if (t.panel) t.panel.classList.add('hidden');
+        });
+        nav.classList.add('active');
+        panel.classList.remove('hidden');
+        refreshIcons();
+      });
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -862,7 +897,7 @@
         state.aspectRatio = card.dataset.ratio;
 
         dom.aspectCurrentBadge.textContent =
-          state.aspectRatio === 'original' ? 'Original' : state.aspectRatio;
+          state.aspectRatio === 'original' ? 'Orijinal' : state.aspectRatio;
 
         // Visual Fit Mode Container visibility
         if (state.aspectRatio === 'original') {
@@ -994,12 +1029,12 @@
     dom.sliderCrf.addEventListener('input', (e) => {
       const crfVal = parseInt(e.target.value);
       state.crf = crfVal;
-      let label = 'Balanced';
-      if (crfVal <= 18) label = 'Visually Lossless';
-      else if (crfVal <= 21) label = 'Very High Quality';
-      else if (crfVal <= 24) label = 'High Quality (Recommended)';
-      else if (crfVal <= 28) label = 'Medium Compression';
-      else label = 'Heavy Compression';
+      let label = 'Dengeli';
+      if (crfVal <= 18) label = 'Görsel Kayıpsız';
+      else if (crfVal <= 21) label = 'Çok Yüksek Kalite';
+      else if (crfVal <= 24) label = 'Yüksek Kalite (Önerilen)';
+      else if (crfVal <= 28) label = 'Orta Sıkıştırma';
+      else label = 'Maksimum Sıkıştırma';
 
       dom.crfValueBadge.textContent = `${crfVal} (${label})`;
       updateExportSummary();
@@ -1042,10 +1077,10 @@
 
     if (state.targetSizeMb < effectiveOrigMb) {
       const pct = Math.round(((effectiveOrigMb - state.targetSizeMb) / effectiveOrigMb) * 100);
-      dom.targetSavingsPercentage.textContent = `-${pct}% Reduction`;
+      dom.targetSavingsPercentage.textContent = `-%${pct} Tasarruf`;
       dom.targetSavingsPercentage.className = 'font-bold text-emerald-400 font-mono text-sm';
     } else {
-      dom.targetSavingsPercentage.textContent = 'Original Size or Larger';
+      dom.targetSavingsPercentage.textContent = 'Orijinal Boyut veya Daha Büyük';
       dom.targetSavingsPercentage.className = 'font-semibold text-slate-400 font-mono text-xs';
     }
   }
@@ -1059,12 +1094,13 @@
     } else if (state.metadata && state.metadata.video) {
       parts.push(`${state.metadata.video.width}x${state.metadata.video.height}`);
     } else {
-      parts.push('Original Res');
+      parts.push('Orijinal Çözünürlük');
     }
 
     // Aspect ratio
     if (state.aspectRatio !== 'original') {
-      parts.push(`${state.aspectRatio} (${state.fitMode})`);
+      const fitLabel = state.fitMode === 'pad' ? 'Şeritli' : state.fitMode === 'crop' ? 'Kırpma' : 'Uzatma';
+      parts.push(`${state.aspectRatio} (${fitLabel})`);
     }
 
     // FPS
@@ -1074,17 +1110,26 @@
 
     // Compression Mode
     if (state.compressionMode === 'target_size') {
-      parts.push(`~${state.targetSizeMb} MB`);
+      parts.push(`Hedef: ~${state.targetSizeMb} MB`);
     } else {
       const codecName = state.codec === 'libx265' ? 'H.265' : 'H.264';
-      parts.push(`CRF ${state.crf} • ${codecName}`);
+      parts.push(`CRF ${state.crf} (${codecName})`);
+    }
+
+    // Multi-segment cuts
+    if (state.cutOutSegments && state.cutOutSegments.length > 0) {
+      parts.push(`${state.cutOutSegments.length} Bölüm Silinecek`);
     }
 
     if (state.removeAudio) {
-      parts.push('Muted');
+      parts.push('Sessiz');
+    } else {
+      parts.push(`${state.audioBitrate}k Ses`);
     }
 
-    dom.exportSummaryText.textContent = `Export: ${parts.join(' • ')}`;
+    if (dom.exportSummaryText) {
+      dom.exportSummaryText.textContent = parts.join(' • ');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1097,7 +1142,7 @@
 
   async function startJob() {
     if (!state.fileId) {
-      showToast('No media file loaded to process.', 'error');
+      showToast('İşlenecek video dosyası bulunamadı.', 'error');
       return;
     }
 
@@ -1167,8 +1212,8 @@
     dom.metricSpeed.textContent = '0.0x';
     dom.metricFps.textContent = '0.0';
     dom.metricCurrentTime.textContent = '00:00:00';
-    dom.metricEta.textContent = 'Estimating...';
-    dom.progressLogTicker.textContent = 'Submitting job to transcode worker...';
+    dom.metricEta.textContent = 'Hesaplanıyor...';
+    dom.progressLogTicker.textContent = 'İşlem FFmpeg motoruna iletiliyor...';
 
     switchView('progress');
 
@@ -1247,13 +1292,13 @@
     if (data.eta_seconds !== undefined && data.eta_seconds !== null) {
       dom.metricEta.textContent = `~${Math.round(data.eta_seconds)}s`;
     } else {
-      dom.metricEta.textContent = 'Calculating';
+      dom.metricEta.textContent = 'Hesaplanıyor';
     }
 
     if (data.bitrate && data.bitrate !== 'N/A') {
-      dom.progressLogTicker.textContent = `Transcoding at ${data.bitrate} (FPS: ${data.fps || '0'})`;
+      dom.progressLogTicker.textContent = `İşleniyor: ${data.bitrate} (FPS: ${data.fps || '0'})`;
     } else {
-      dom.progressLogTicker.textContent = `Status: ${event.status.toUpperCase()} - ${Math.round(progress)}%`;
+      dom.progressLogTicker.textContent = `Durum: ${event.status.toUpperCase()} - %${Math.round(progress)}`;
     }
 
     if (event.status === 'completed') {
@@ -1268,7 +1313,7 @@
         state.activeEventSource.close();
         state.activeEventSource = null;
       }
-      const errMsg = event.error || (event.status === 'cancelled' ? 'Job was cancelled' : 'Transcoding failed');
+      const errMsg = event.error || (event.status === 'cancelled' ? 'İşlem iptal edildi' : 'Video işleme başarısız oldu');
       showToast(errMsg, event.status === 'cancelled' ? 'info' : 'error');
       switchView('editor');
     }
@@ -1278,13 +1323,13 @@
     if (!state.activeJobId) return;
     try {
       dom.btnCancelJob.disabled = true;
-      dom.progressLogTicker.textContent = 'Cancelling job execution...';
+      dom.progressLogTicker.textContent = 'İşlem iptal ediliyor...';
       const res = await fetch(`/api/jobs/${state.activeJobId}/cancel`, { method: 'POST' });
       if (res.ok) {
-        showToast('Processing cancelled.', 'info');
+        showToast('İşlem iptal edildi.', 'info');
       }
     } catch (err) {
-      showToast('Failed to cancel job.', 'error');
+      showToast('İşlem iptal edilemedi.', 'error');
     } finally {
       dom.btnCancelJob.disabled = false;
       if (state.activeEventSource) {
@@ -1383,16 +1428,16 @@
       const ratio = (jobEvent.output_size / state.originalSize) * 100;
       if (ratio < 100) {
         const saved = Math.round(100 - ratio);
-        dom.completeSavingsBadge.textContent = `-${saved}% Saved`;
+        dom.completeSavingsBadge.textContent = `-%${saved} Tasarruf`;
         dom.completeSavingsBadge.className =
           'px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold font-mono text-xs sm:text-sm';
       } else {
-        dom.completeSavingsBadge.textContent = '+0% (Size Maintained)';
+        dom.completeSavingsBadge.textContent = 'Boyut Korundu';
         dom.completeSavingsBadge.className =
           'px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold font-mono text-xs sm:text-sm';
       }
     } else {
-      dom.completeSavingsBadge.textContent = 'Ready';
+      dom.completeSavingsBadge.textContent = 'Hazır';
     }
 
     // Setup Processed Video Preview Player
@@ -1591,6 +1636,7 @@
     initUploadHandlers();
     initPlayerControls();
     initTimelineTrimmer();
+    initInspectorTabs();
     initAspectRatioControls();
     initResolutionAndFpsControls();
     initCompressionControls();
