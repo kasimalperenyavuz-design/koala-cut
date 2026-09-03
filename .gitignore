@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+env/
+
+# PyInstaller / Build artifacts
+build/
+dist/
+*.spec.bak
+version_info.txt
+
+# Media uploads and processed outputs
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# User updater local configs
+updater_config.json
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+.idea/
+.vscode/
