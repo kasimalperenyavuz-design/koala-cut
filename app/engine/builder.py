@@ -15,7 +15,17 @@ from app.engine.binaries import get_ffmpeg_path
 
 FitMode = Literal["scale", "pad", "crop"]
 EncodingMode = Literal["crf", "target_size", "copy"]
-VideoCodec = Literal["libx264", "libx265", "copy"]
+VideoCodec = Literal[
+    "libx264",
+    "libx265",
+    "h264_nvenc",
+    "hevc_nvenc",
+    "h264_qsv",
+    "hevc_qsv",
+    "h264_amf",
+    "hevc_amf",
+    "copy",
+]
 
 
 class CutSegment(BaseModel):
@@ -57,6 +67,7 @@ class VideoFilterConfig(BaseModel):
     audio_bitrate_kbps: int = Field(default=128, gt=0, description="Audio bitrate in kbps")
     remove_audio: bool = Field(default=False, description="Strip audio stream entirely")
     fast_seek: bool = Field(default=True, description="Place trim flags before input for fast seek")
+    hwaccel: str = Field(default="auto", description="Hardware acceleration mode ('auto', 'nvenc', 'qsv', 'amf', 'cpu')")
 
     @model_validator(mode="after")
     def validate_timings(self) -> "VideoFilterConfig":
@@ -256,6 +267,73 @@ class FFmpegCommandBuilder:
 
         return keep_intervals
 
+    @staticmethod
+    def _build_encoder_options(
+        video_codec: str,
+        mode: str,
+        crf: int = 23,
+        preset: str = "medium",
+        bitrate_kbps: Optional[int] = None,
+    ) -> list[str]:
+        """Generate encoder CLI options supporting hardware (NVENC, QSV, AMF) and CPU backends."""
+        if mode == "copy":
+            return ["-c:v", "copy"]
+
+        opts: list[str] = ["-c:v", video_codec]
+        is_nvenc = "nvenc" in video_codec
+        is_qsv = "qsv" in video_codec
+        is_amf = "amf" in video_codec
+
+        if is_nvenc:
+            # Map standard presets to NVENC p1-p7
+            nv_preset = "p4"
+            if preset in ("ultrafast", "superfast", "veryfast", "fast"):
+                nv_preset = "p2"
+            elif preset in ("slow", "slower", "veryslow"):
+                nv_preset = "p6"
+
+            if mode == "crf":
+                opts.extend(["-rc:v", "vbr", "-cq:v", str(crf), "-preset", nv_preset])
+            elif mode == "target_size":
+                assert bitrate_kbps is not None
+                max_rate = int(bitrate_kbps * 1.5)
+                buf_size = int(bitrate_kbps * 2.0)
+                opts.extend([
+                    "-b:v", f"{bitrate_kbps}k",
+                    "-maxrate:v", f"{max_rate}k",
+                    "-bufsize:v", f"{buf_size}k",
+                    "-preset", nv_preset,
+                ])
+        elif is_qsv:
+            if mode == "crf":
+                opts.extend(["-global_quality", str(crf), "-preset", preset])
+            elif mode == "target_size":
+                assert bitrate_kbps is not None
+                opts.extend(["-b:v", f"{bitrate_kbps}k", "-preset", preset])
+        elif is_amf:
+            if mode == "crf":
+                opts.extend(["-rc", "cqp", "-qp_i", str(crf), "-qp_p", str(crf)])
+            elif mode == "target_size":
+                assert bitrate_kbps is not None
+                opts.extend(["-b:v", f"{bitrate_kbps}k"])
+        else:
+            # Standard software CPU (libx264, libx265)
+            if mode == "crf":
+                opts.extend(["-crf", str(crf), "-preset", preset])
+            elif mode == "target_size":
+                assert bitrate_kbps is not None
+                max_rate = int(bitrate_kbps * 1.5)
+                buf_size = int(bitrate_kbps * 2.0)
+                opts.extend([
+                    "-b:v", f"{bitrate_kbps}k",
+                    "-maxrate", f"{max_rate}k",
+                    "-bufsize", f"{buf_size}k",
+                    "-preset", preset,
+                ])
+
+        opts.extend(["-pix_fmt", "yuv420p"])
+        return opts
+
     def build(
         self,
         input_path: str,
@@ -372,14 +450,14 @@ class FFmpegCommandBuilder:
 
         # Encoding Mode options
         if config.mode == "copy":
-            cmd.extend(["-c:v", "copy"])
+            cmd.extend(self._build_encoder_options(config.video_codec, "copy"))
         elif config.mode == "crf":
-            cmd.extend([
-                "-c:v", config.video_codec,
-                "-crf", str(config.crf),
-                "-preset", config.preset,
-                "-pix_fmt", "yuv420p",
-            ])
+            cmd.extend(self._build_encoder_options(
+                video_codec=config.video_codec,
+                mode="crf",
+                crf=config.crf,
+                preset=config.preset,
+            ))
         elif config.mode == "target_size":
             assert config.target_size_mb is not None
             if has_multi_cuts:
@@ -399,16 +477,12 @@ class FFmpegCommandBuilder:
                 audio_bitrate_kbps=config.audio_bitrate_kbps,
                 remove_audio=config.remove_audio,
             )
-            max_rate = int(v_bitrate_kbps * 1.5)
-            buf_size = int(v_bitrate_kbps * 2.0)
-            cmd.extend([
-                "-c:v", config.video_codec,
-                "-b:v", f"{v_bitrate_kbps}k",
-                "-maxrate", f"{max_rate}k",
-                "-bufsize", f"{buf_size}k",
-                "-preset", config.preset,
-                "-pix_fmt", "yuv420p",
-            ])
+            cmd.extend(self._build_encoder_options(
+                video_codec=config.video_codec,
+                mode="target_size",
+                bitrate_kbps=v_bitrate_kbps,
+                preset=config.preset,
+            ))
 
         # Audio options
         if config.remove_audio:

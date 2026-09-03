@@ -2,7 +2,7 @@
 ; Zero-dependency standalone Windows installer
 
 #define MyAppName "koala-cut"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "koala-cut Studio"
 #define MyAppURL "http://127.0.0.1:8000"
 #define MyAppExeName "koala-cut.exe"

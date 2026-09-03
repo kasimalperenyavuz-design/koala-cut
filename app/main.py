@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.engine.builder import VideoFilterConfig
+from app.engine.hardware import detect_gpu_capabilities
 from app.engine.probe import MediaMetadata, ProbeError, probe_media_async
 from app.services.job_manager import Job, job_manager
 from app.services.preview import ensure_preview_file, is_browser_compatible
@@ -427,6 +428,12 @@ async def stream_preview(file_id: str, request: Request):
 # ---------------------------------------------------------------------------
 # Auto-Update Endpoints
 # ---------------------------------------------------------------------------
+
+
+@app.get("/api/hardware")
+async def get_hardware_info():
+    """Return system GPU hardware acceleration capabilities."""
+    return detect_gpu_capabilities()
 
 
 @app.get("/api/updates/status")

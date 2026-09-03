@@ -23,6 +23,12 @@
     isPlayingTrim: false,
     cutOutSegments: [], // [{ start: float, end: float }]
 
+    // NLE Multi-Clip Timeline
+    clips: [], // [{ id: string, start: number, end: number, selected: boolean }]
+    selectedClipId: null,
+    clipHistory: [], // undo stack
+    lastPlayrate: 1.0,
+
     // Transformation Settings
     aspectRatio: 'original',
     fitMode: 'pad',
@@ -32,7 +38,7 @@
     fps: 'original',
     customFps: null,
 
-    // Compression Settings
+    // Compression & Hardware Settings
     compressionMode: 'target_size', // 'target_size' | 'crf'
     targetSizeMb: 8.0,
     crf: 23,
@@ -40,6 +46,8 @@
     preset: 'medium',
     removeAudio: false,
     audioBitrate: 128,
+    gpuCapabilities: null,
+    hwaccelMode: 'auto',
 
     // Active Processing Job
     activeJobId: null,
@@ -93,8 +101,9 @@
     btnPlayerFs: document.getElementById('btn-player-fs'),
     aspectGuideOverlay: document.getElementById('aspect-guide-overlay'),
 
-    // Timeline Trimmer
+    // Timeline & NLE Elements
     trimDurationBadge: document.getElementById('trim-duration-badge'),
+    clipsCountBadge: document.getElementById('clips-count-badge'),
     timelineTrack: document.getElementById('timeline-track'),
     timelineActiveRegion: document.getElementById('timeline-active-region'),
     timelinePlayhead: document.getElementById('timeline-playhead'),
@@ -115,6 +124,26 @@
     cutSegmentsList: document.getElementById('cut-segments-list'),
     cutSegmentsCount: document.getElementById('cut-segments-count'),
     timelineCutMarkers: document.getElementById('timeline-cut-markers'),
+
+    // NLE Clips Track & Action Toolbar
+    timelineClipsTrack: document.getElementById('timeline-clips-track'),
+    timelineSelectionHint: document.getElementById('timeline-selection-hint'),
+    btnSplitClip: document.getElementById('btn-split-clip'),
+    btnDeleteClip: document.getElementById('btn-delete-clip'),
+    btnUndoTimeline: document.getElementById('btn-undo-timeline'),
+    btnResetTimeline: document.getElementById('btn-reset-timeline'),
+    btnOpenShortcuts: document.getElementById('btn-open-shortcuts'),
+
+    // Shortcuts Modal
+    shortcutsModal: document.getElementById('shortcuts-modal'),
+    btnCloseShortcuts: document.getElementById('btn-close-shortcuts'),
+    btnDismissShortcuts: document.getElementById('btn-dismiss-shortcuts'),
+
+    // GPU Hardware Acceleration
+    gpuStatusBadge: document.getElementById('gpu-status-badge'),
+    gpuDescText: document.getElementById('gpu-desc-text'),
+    selectHwaccel: document.getElementById('select-hwaccel'),
+    summaryGpuChip: document.getElementById('summary-gpu-chip'),
 
     // Stüdyo Inspector Tabs
     tabNavFormat: document.getElementById('tab-nav-format'),
@@ -505,11 +534,25 @@
     dom.inputStartSeconds.max = state.duration.toString();
     dom.inputEndSeconds.max = state.duration.toString();
 
-    // Reset Cut-Out Segments
+    // Reset Cut-Out Segments & Initialize NLE Clips
     state.cutOutSegments = [];
     if (dom.inputCutStart) dom.inputCutStart.value = '0.0';
     if (dom.inputCutEnd) dom.inputCutEnd.value = Math.min(state.duration, 3.0).toFixed(1);
     renderCutSegments();
+
+    clipCounter = 1;
+    state.clips = [{
+      id: 'clip-1',
+      start: 0.0,
+      end: Math.round(state.duration * 100) / 100,
+      selected: false,
+    }];
+    state.selectedClipId = null;
+    state.clipHistory = [];
+    if (dom.btnDeleteClip) {
+      dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+    }
+    renderClipsTrack();
 
     updateTimelineHandles();
     updateTrimBadge();
@@ -560,6 +603,25 @@
         dom.timelinePlayhead.style.left = `${Math.min(100, Math.max(0, percent))}%`;
       }
 
+      // Real-time NLE gap skipping across deleted regions
+      if (!dom.videoPlayer.paused && state.clips && state.clips.length > 0) {
+        const lastClip = state.clips[state.clips.length - 1];
+        if (cur >= lastClip.end) {
+          dom.videoPlayer.pause();
+          state.isPlayingTrim = false;
+          return;
+        }
+
+        for (let i = 0; i < state.clips.length - 1; i++) {
+          const currentClip = state.clips[i];
+          const nextClip = state.clips[i + 1];
+          if (cur >= currentClip.end && cur < nextClip.start) {
+            dom.videoPlayer.currentTime = nextClip.start;
+            break;
+          }
+        }
+      }
+
       // If in trim preview mode and we reached end trim, pause
       if (state.isPlayingTrim && cur >= state.endTime) {
         dom.videoPlayer.pause();
@@ -589,6 +651,433 @@
         document.exitFullscreen().catch(() => {});
       }
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // NLE Multi-Clip Timeline & Ripple Delete
+  // ---------------------------------------------------------------------------
+  let clipCounter = 1;
+
+  function pushClipHistory() {
+    if (!state.clips) return;
+    state.clipHistory.push({
+      clips: state.clips.map((c) => ({ ...c })),
+      selectedClipId: state.selectedClipId,
+    });
+    if (state.clipHistory.length > 25) {
+      state.clipHistory.shift();
+    }
+  }
+
+  function undoTimeline() {
+    if (!state.clipHistory || state.clipHistory.length === 0) {
+      showToast('Geri alınacak bir kurgu işlemi bulunmuyor.', 'info');
+      return;
+    }
+    const previous = state.clipHistory.pop();
+    state.clips = previous.clips;
+    state.selectedClipId = previous.selectedClipId;
+    syncClipsToEngine();
+    renderClipsTrack();
+    showToast('Son kurgu işlemi geri alındı (Undo) ↩️', 'info');
+  }
+
+  function splitClipAtPlayhead() {
+    if (state.duration <= 0 || !state.clips || state.clips.length === 0) return;
+    const cur = dom.videoPlayer.currentTime;
+
+    // Find the clip containing current playhead
+    const targetIdx = state.clips.findIndex(
+      (c) => cur > c.start + 0.15 && cur < c.end - 0.15
+    );
+
+    if (targetIdx === -1) {
+      showToast('İmleç bir klibin sınırında veya silinmiş bir aralıkta. Bölme yapılamaz.', 'info');
+      return;
+    }
+
+    pushClipHistory();
+    const targetClip = state.clips[targetIdx];
+    const curRounded = Math.round(cur * 100) / 100;
+
+    const clipA = {
+      id: targetClip.id,
+      start: targetClip.start,
+      end: curRounded,
+      selected: false,
+    };
+    const clipB = {
+      id: `clip-${++clipCounter}`,
+      start: curRounded,
+      end: targetClip.end,
+      selected: true,
+    };
+
+    state.clips.splice(targetIdx, 1, clipA, clipB);
+    state.selectedClipId = clipB.id;
+
+    syncClipsToEngine();
+    renderClipsTrack();
+    showToast(`Klip ${formatTime(curRounded)} noktasından bölündü (Split) ✂️`, 'success');
+  }
+
+  function selectClip(clipId) {
+    state.selectedClipId = clipId;
+    state.clips.forEach((c) => {
+      c.selected = c.id === clipId;
+    });
+
+    if (dom.btnDeleteClip) {
+      if (clipId && state.clips.length > 1) {
+        dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
+      } else {
+        dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+      }
+    }
+
+    const sel = state.clips.find((c) => c.id === clipId);
+    if (dom.timelineSelectionHint) {
+      if (sel) {
+        const dur = (sel.end - sel.start).toFixed(1);
+        dom.timelineSelectionHint.textContent = `Seçili: Klip (${formatTime(sel.start)} - ${formatTime(sel.end)} • ${dur}s)`;
+      } else {
+        dom.timelineSelectionHint.textContent = 'Seçili klip: Yok';
+      }
+    }
+
+    renderClipsTrack();
+  }
+
+  function deleteSelectedClip() {
+    if (!state.selectedClipId) {
+      showToast('Lütfen önce zaman çizgisinden silmek istediğiniz klibe tıklayın.', 'info');
+      return;
+    }
+
+    if (state.clips.length <= 1) {
+      showToast('Videonun tamamını silemezsiniz! Kurguyu sıfırlamak için Sıfırla butonunu kullanın.', 'error');
+      return;
+    }
+
+    pushClipHistory();
+    const delIdx = state.clips.findIndex((c) => c.id === state.selectedClipId);
+    if (delIdx !== -1) {
+      const removed = state.clips.splice(delIdx, 1)[0];
+      state.selectedClipId = null;
+      if (dom.btnDeleteClip) {
+        dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+      }
+      syncClipsToEngine();
+      renderClipsTrack();
+      showToast(`Klip silindi (${formatTime(removed.start)} - ${formatTime(removed.end)}). Boşluk otomatik kapatıldı! 🗑️`, 'success');
+    }
+  }
+
+  function resetTimelineClips() {
+    if (state.duration <= 0) return;
+    pushClipHistory();
+    state.clips = [{
+      id: `clip-${++clipCounter}`,
+      start: 0.0,
+      end: Math.round(state.duration * 100) / 100,
+      selected: false,
+    }];
+    state.selectedClipId = null;
+    if (dom.btnDeleteClip) {
+      dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+    }
+    syncClipsToEngine();
+    renderClipsTrack();
+    showToast('Kurgu sıfırlandı, video tek parça yapıldı.', 'info');
+  }
+
+  function syncClipsToEngine() {
+    if (!state.clips || state.clips.length === 0) return;
+
+    state.clips.sort((a, b) => a.start - b.start);
+
+    // Overall trim bounds
+    state.startTime = state.clips[0].start;
+    state.endTime = state.clips[state.clips.length - 1].end;
+
+    dom.inputStartSeconds.value = state.startTime.toFixed(1);
+    dom.inputEndSeconds.value = state.endTime.toFixed(1);
+
+    // Gaps between consecutive clips become cutOutSegments
+    const gaps = [];
+    for (let i = 0; i < state.clips.length - 1; i++) {
+      const endCurr = state.clips[i].end;
+      const startNext = state.clips[i + 1].start;
+      if (startNext - endCurr > 0.05) {
+        gaps.push({
+          start: Math.round(endCurr * 100) / 100,
+          end: Math.round(startNext * 100) / 100,
+        });
+      }
+    }
+    state.cutOutSegments = gaps;
+
+    if (dom.clipsCountBadge) {
+      dom.clipsCountBadge.textContent = `${state.clips.length} Klip`;
+    }
+
+    renderCutSegments();
+    renderTimelineCutMarkers();
+    updateTimelineHandles();
+    updateTrimBadge();
+    updateExportSummary();
+    updateSavingsEstimate();
+  }
+
+  function renderClipsTrack() {
+    if (!dom.timelineClipsTrack) return;
+    dom.timelineClipsTrack.innerHTML = '';
+
+    if (!state.clips || state.clips.length === 0) return;
+
+    let prevEnd = state.clips[0].start;
+
+    state.clips.forEach((clip, idx) => {
+      // If there's an omitted gap before this clip
+      if (clip.start - prevEnd > 0.05) {
+        const gapDur = (clip.start - prevEnd).toFixed(1);
+        const gapEl = document.createElement('div');
+        gapEl.className = 'timeline-gap-block';
+        gapEl.innerHTML = `<span>Silindi (-${gapDur}s)</span>`;
+        gapEl.title = `Silinen Aralık: ${formatTime(prevEnd)} - ${formatTime(clip.start)}`;
+        dom.timelineClipsTrack.appendChild(gapEl);
+      }
+
+      // Clip element
+      const clipEl = document.createElement('div');
+      const isSelected = clip.id === state.selectedClipId;
+      clipEl.className = `timeline-clip-block ${isSelected ? 'selected' : ''}`;
+      clipEl.dataset.clipId = clip.id;
+
+      const dur = (clip.end - clip.start).toFixed(1);
+      clipEl.innerHTML = `
+        <div class="flex items-center gap-1.5 min-w-0 pointer-events-none">
+          <i data-lucide="film" class="w-3.5 h-3.5 ${isSelected ? 'text-indigo-300' : 'text-slate-400'} flex-shrink-0"></i>
+          <span class="text-xs font-semibold ${isSelected ? 'text-white' : 'text-slate-200'} truncate">Klip ${idx + 1}</span>
+        </div>
+        <div class="flex items-center gap-1 text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-400'} flex-shrink-0 pointer-events-none">
+          <span>${dur}s</span>
+        </div>
+      `;
+
+      clipEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectClip(clip.id);
+      });
+
+      clipEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        dom.videoPlayer.currentTime = clip.start;
+      });
+
+      dom.timelineClipsTrack.appendChild(clipEl);
+      prevEnd = clip.end;
+    });
+
+    refreshIcons();
+  }
+
+  function initNLEClipsTrack() {
+    if (dom.btnSplitClip) {
+      dom.btnSplitClip.addEventListener('click', splitClipAtPlayhead);
+    }
+    if (dom.btnDeleteClip) {
+      dom.btnDeleteClip.addEventListener('click', deleteSelectedClip);
+    }
+    if (dom.btnUndoTimeline) {
+      dom.btnUndoTimeline.addEventListener('click', undoTimeline);
+    }
+    if (dom.btnResetTimeline) {
+      dom.btnResetTimeline.addEventListener('click', resetTimelineClips);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keyboard Shortcuts Manager
+  // ---------------------------------------------------------------------------
+  function initKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName)) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (dom.shortcutsModal && !dom.shortcutsModal.classList.contains('hidden')) {
+          dom.shortcutsModal.classList.add('hidden');
+          return;
+        }
+      }
+
+      // Space: Play / Pause
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (dom.videoPlayer.paused) {
+          if (dom.videoPlayer.currentTime >= state.endTime || dom.videoPlayer.currentTime < state.startTime) {
+            dom.videoPlayer.currentTime = state.startTime;
+          }
+          dom.videoPlayer.play();
+        } else {
+          dom.videoPlayer.pause();
+        }
+        return;
+      }
+
+      // S or C: Split clip at playhead
+      if (e.code === 'KeyS' || e.code === 'KeyC') {
+        e.preventDefault();
+        splitClipAtPlayhead();
+        return;
+      }
+
+      // Delete or Backspace: Delete selected clip
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        if (state.selectedClipId) {
+          e.preventDefault();
+          deleteSelectedClip();
+        }
+        return;
+      }
+
+      // Ctrl+Z: Undo timeline
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        e.preventDefault();
+        undoTimeline();
+        return;
+      }
+
+      // ArrowLeft: Step back 1s (or 5s with Shift)
+      if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        dom.videoPlayer.currentTime = Math.max(0, dom.videoPlayer.currentTime - step);
+        return;
+      }
+
+      // ArrowRight: Step forward 1s (or 5s with Shift)
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        dom.videoPlayer.currentTime = Math.min(state.duration, dom.videoPlayer.currentTime + step);
+        return;
+      }
+
+      // J: Step back 3s
+      if (e.code === 'KeyJ') {
+        e.preventDefault();
+        dom.videoPlayer.currentTime = Math.max(0, dom.videoPlayer.currentTime - 3);
+        return;
+      }
+
+      // K: Pause
+      if (e.code === 'KeyK') {
+        e.preventDefault();
+        dom.videoPlayer.pause();
+        return;
+      }
+
+      // L: Step forward 3s
+      if (e.code === 'KeyL') {
+        e.preventDefault();
+        dom.videoPlayer.currentTime = Math.min(state.duration, dom.videoPlayer.currentTime + 3);
+        return;
+      }
+
+      // M: Mute toggle
+      if (e.code === 'KeyM') {
+        e.preventDefault();
+        dom.btnPlayerMute.click();
+        return;
+      }
+
+      // F: Fullscreen
+      if (e.code === 'KeyF') {
+        e.preventDefault();
+        dom.btnPlayerFs.click();
+        return;
+      }
+    });
+
+    if (dom.btnOpenShortcuts) {
+      dom.btnOpenShortcuts.addEventListener('click', () => {
+        dom.shortcutsModal.classList.remove('hidden');
+        refreshIcons();
+      });
+    }
+    if (dom.btnCloseShortcuts) {
+      dom.btnCloseShortcuts.addEventListener('click', () => {
+        dom.shortcutsModal.classList.add('hidden');
+      });
+    }
+    if (dom.btnDismissShortcuts) {
+      dom.btnDismissShortcuts.addEventListener('click', () => {
+        dom.shortcutsModal.classList.add('hidden');
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // GPU Hardware Acceleration Detection
+  // ---------------------------------------------------------------------------
+  async function fetchHardwareCapabilities() {
+    try {
+      const res = await fetch('/api/hardware');
+      if (!res.ok) return;
+      const data = await res.json();
+      state.gpuCapabilities = data;
+
+      if (data.is_hardware_accelerated) {
+        if (dom.gpuStatusBadge) {
+          dom.gpuStatusBadge.textContent = `${data.recommended_h264.toUpperCase()} Aktif ⚡`;
+          dom.gpuStatusBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        }
+        if (dom.gpuDescText) {
+          dom.gpuDescText.textContent = data.description;
+        }
+        if (dom.summaryGpuChip) {
+          dom.summaryGpuChip.innerHTML = `<i data-lucide="zap" class="w-3 h-3 fill-current"></i><span>${data.hardware_type.toUpperCase()} GPU</span>`;
+          dom.summaryGpuChip.classList.remove('hidden');
+        }
+        // Auto-select hardware codec
+        state.codec = data.recommended_h264;
+      } else {
+        if (dom.gpuStatusBadge) {
+          dom.gpuStatusBadge.textContent = 'CPU (Yazılımsal)';
+          dom.gpuStatusBadge.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-slate-800 text-slate-400 border border-slate-700';
+        }
+        if (dom.summaryGpuChip) {
+          dom.summaryGpuChip.innerHTML = `<i data-lucide="cpu" class="w-3 h-3"></i><span>CPU</span>`;
+        }
+      }
+
+      if (dom.selectHwaccel) {
+        dom.selectHwaccel.addEventListener('change', (e) => {
+          state.hwaccelMode = e.target.value;
+          if (state.hwaccelMode === 'cpu') {
+            state.codec = 'libx264';
+            if (dom.summaryGpuChip) {
+              dom.summaryGpuChip.innerHTML = `<i data-lucide="cpu" class="w-3 h-3"></i><span>CPU</span>`;
+            }
+          } else {
+            state.codec = data.recommended_h264 || 'libx264';
+            if (dom.summaryGpuChip && data.is_hardware_accelerated) {
+              dom.summaryGpuChip.innerHTML = `<i data-lucide="zap" class="w-3 h-3 fill-current"></i><span>${data.hardware_type.toUpperCase()} GPU</span>`;
+            }
+          }
+          updateExportSummary();
+          refreshIcons();
+        });
+      }
+      updateExportSummary();
+      refreshIcons();
+    } catch (e) {
+      console.warn('Hardware capabilities probe error:', e);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1199,12 +1688,13 @@
     if (state.compressionMode === 'target_size') {
       config.target_size_mb = state.targetSizeMb;
       config.preset = 'medium';
-      config.video_codec = 'libx264';
+      config.video_codec = state.codec || 'libx264';
     } else {
       config.crf = state.crf;
       config.preset = state.preset;
-      config.video_codec = state.codec;
+      config.video_codec = state.codec || 'libx264';
     }
+    config.hwaccel = state.hwaccelMode || 'auto';
 
     // Reset UI progress meters
     dom.progressPercentLarge.textContent = '0';
@@ -1636,12 +2126,15 @@
     initUploadHandlers();
     initPlayerControls();
     initTimelineTrimmer();
+    initNLEClipsTrack();
+    initKeyboardShortcuts();
     initInspectorTabs();
     initAspectRatioControls();
     initResolutionAndFpsControls();
     initCompressionControls();
     initProcessHandlers();
     initUpdateHandlers();
+    fetchHardwareCapabilities();
     refreshIcons();
   }
 
