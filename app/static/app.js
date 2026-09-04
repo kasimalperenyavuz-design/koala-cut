@@ -110,6 +110,13 @@
     playerVolumeIcon: document.getElementById('player-volume-icon'),
     btnPlayerFs: document.getElementById('btn-player-fs'),
     aspectGuideOverlay: document.getElementById('aspect-guide-overlay'),
+    videoPreviewWrapper: document.getElementById('video-preview-wrapper'),
+    overlayVideoPlayer: document.getElementById('overlay-video-player'),
+    transformGizmo: document.getElementById('transform-gizmo'),
+    gizmoRotatePin: document.getElementById('gizmo-rotate-pin'),
+    gizmoCenterDrag: document.getElementById('gizmo-center-drag'),
+    snapGuideX: document.getElementById('snap-guide-x'),
+    snapGuideY: document.getElementById('snap-guide-y'),
 
     // CapCut NLE Timeline Studio Elements
     capcutTimelineStudio: document.getElementById('capcut-timeline-studio'),
@@ -197,6 +204,17 @@
     inputClipIn: document.getElementById('input-clip-in'),
     inputClipOut: document.getElementById('input-clip-out'),
     selectClipTrack: document.getElementById('select-clip-track'),
+    sliderClipScale: document.getElementById('slider-clip-scale'),
+    inspectorScaleBadge: document.getElementById('inspector-scale-badge'),
+    inputClipPosX: document.getElementById('input-clip-pos-x'),
+    inputClipPosY: document.getElementById('input-clip-pos-y'),
+    sliderClipRotation: document.getElementById('slider-clip-rotation'),
+    inspectorRotationBadge: document.getElementById('inspector-rotation-badge'),
+    btnResetTransform: document.getElementById('btn-reset-transform'),
+    checkClipDenoise: document.getElementById('check-clip-denoise'),
+    denoiseLevelContainer: document.getElementById('denoise-level-container'),
+    checkClipLoudnorm: document.getElementById('check-clip-loudnorm'),
+    checkGlobalLoudnorm: document.getElementById('check-global-loudnorm'),
 
     // Aspect & Fit
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
@@ -626,6 +644,7 @@
   // NLE Timeline Master Playback & Multi-Video Preview Synchronizer
   // ---------------------------------------------------------------------------
   let currentLoadedFileId = null;
+  let currentLoadedOverlayFileId = null;
   let timelinePlaybackRaf = null;
   let lastTimelinePlaybackTime = 0;
   const backgroundAudioPlayers = new Map(); // clipId -> HTMLAudioElement
@@ -707,7 +726,6 @@
   }
 
   function getActiveVideoClipAtTime(t) {
-    // Search visible video tracks from top to bottom (e.g. V3, V2, V1)
     const videoTracks = state.tracks
       .filter((trk) => trk.type === 'video' && trk.visible !== false)
       .slice()
@@ -729,6 +747,101 @@
     return null;
   }
 
+  function getActiveVideoLayersAtTime(t) {
+    const videoTracks = state.tracks
+      .filter((trk) => trk.type === 'video' && trk.visible !== false);
+    
+    let base = null;
+    let overlay = null;
+
+    // V1 is primary base track
+    const v1 = videoTracks.find((trk) => trk.id === 'v1');
+    if (v1) {
+      for (const clip of v1.clips || []) {
+        const s = clip.timeline_start || 0;
+        const d = getClipDuration(clip);
+        if (t >= s && t < s + d) {
+          base = { clip, track: v1, clipStart: s, clipDur: d };
+          break;
+        }
+      }
+    }
+
+    // Other video tracks (v2, v3, etc.) are overlay tracks
+    const otherTracks = videoTracks
+      .filter((trk) => trk.id !== 'v1')
+      .sort((a, b) => {
+        const numA = parseInt(a.id.replace(/\D/g, '') || '0', 10);
+        const numB = parseInt(b.id.replace(/\D/g, '') || '0', 10);
+        return numB - numA;
+      });
+
+    for (const trk of otherTracks) {
+      for (const clip of trk.clips || []) {
+        const s = clip.timeline_start || 0;
+        const d = getClipDuration(clip);
+        if (t >= s && t < s + d) {
+          overlay = { clip, track: trk, clipStart: s, clipDur: d };
+          break;
+        }
+      }
+      if (overlay) break;
+    }
+
+    if (!base && overlay) {
+      base = overlay;
+      overlay = null;
+    }
+
+    return { base, overlay };
+  }
+
+  function updateTransformGizmoUI() {
+    if (!dom.transformGizmo || !dom.videoPreviewWrapper) return;
+    const sel = getSelectedClip();
+    if (!sel || sel.track.type !== 'video') {
+      dom.transformGizmo.classList.add('hidden');
+      return;
+    }
+
+    const { clip } = sel;
+    const clipStart = clip.timeline_start || 0;
+    const clipEnd = clipStart + getClipDuration(clip);
+    if (state.playheadTime < clipStart - 0.05 || state.playheadTime > clipEnd + 0.05) {
+      dom.transformGizmo.classList.add('hidden');
+      return;
+    }
+
+    const wrapperRect = dom.videoPreviewWrapper.getBoundingClientRect();
+    if (wrapperRect.width === 0 || wrapperRect.height === 0) {
+      dom.transformGizmo.classList.add('hidden');
+      return;
+    }
+
+    const vw = wrapperRect.width;
+    const vh = wrapperRect.height;
+    const scale = clip.scale !== undefined ? clip.scale : 1.0;
+    const posX = clip.pos_x || 0;
+    const posY = clip.pos_y || 0;
+    const rotation = clip.rotation || 0;
+
+    const boxW = Math.max(40, vw * scale * 0.95);
+    const boxH = Math.max(30, vh * scale * 0.95);
+
+    const centerX = vw / 2 + (vw * (posX / 100));
+    const centerY = vh / 2 + (vh * (posY / 100));
+
+    const left = centerX - boxW / 2;
+    const top = centerY - boxH / 2;
+
+    dom.transformGizmo.style.width = `${boxW}px`;
+    dom.transformGizmo.style.height = `${boxH}px`;
+    dom.transformGizmo.style.left = `${left}px`;
+    dom.transformGizmo.style.top = `${top}px`;
+    dom.transformGizmo.style.transform = `rotate(${rotation}deg)`;
+    dom.transformGizmo.classList.remove('hidden');
+  }
+
   function syncPreviewToTimeline(targetTime, isPlaying = false) {
     state.playheadTime = Math.max(0, Math.min(state.duration, targetTime));
 
@@ -740,21 +853,32 @@
       dom.playerCurrentTime.textContent = formatTime(state.playheadTime);
     }
 
-    const active = getActiveVideoClipAtTime(state.playheadTime);
+    const { base, overlay } = getActiveVideoLayersAtTime(state.playheadTime);
     let activeVideoClipId = null;
 
-    if (active) {
-      const { clip, track } = active;
+    // 1. Base Video Player Sync
+    if (base) {
+      const { clip, track } = base;
       activeVideoClipId = clip.id;
       const fileId = clip.file_id || state.fileId;
       const speed = clip.speed || 1.0;
-      const offsetInClip = (state.playheadTime - active.clipStart) * speed;
+      const offsetInClip = (state.playheadTime - base.clipStart) * speed;
       const sourceTime = clip.in_point + offsetInClip;
       const targetSrc = clip.preview_url || `/api/media/${fileId}`;
 
-      // Respect track mute & clip volume for active video player
       dom.videoPlayer.muted = track.muted || false;
       dom.videoPlayer.volume = Math.max(0, Math.min(1, clip.volume !== undefined ? clip.volume : 1.0));
+
+      // Apply Base Transform if modified
+      const bScale = clip.scale !== undefined ? clip.scale : 1.0;
+      const bX = clip.pos_x || 0;
+      const bY = clip.pos_y || 0;
+      const bRot = clip.rotation || 0;
+      if (bScale !== 1.0 || bX !== 0 || bY !== 0 || bRot !== 0) {
+        dom.videoPlayer.style.transform = `translate(${bX}%, ${bY}%) scale(${bScale}) rotate(${bRot}deg)`;
+      } else {
+        dom.videoPlayer.style.transform = '';
+      }
 
       if (currentLoadedFileId !== fileId) {
         currentLoadedFileId = fileId;
@@ -774,7 +898,6 @@
         if (!isPlaying) {
           dom.videoPlayer.currentTime = sourceTime;
         } else {
-          // Re-sync if drifted > 0.35s
           if (Math.abs(dom.videoPlayer.currentTime - sourceTime) > 0.35) {
             dom.videoPlayer.currentTime = sourceTime;
           }
@@ -784,13 +907,68 @@
         }
       }
     } else {
-      // Empty gap on timeline
       if (!dom.videoPlayer.paused && isPlaying) {
         dom.videoPlayer.pause();
       }
+      dom.videoPlayer.style.transform = '';
     }
 
-    // Simultaneously sync all background audio (underneath video tracks and dedicated audio tracks)
+    // 2. Secondary Overlay Video Player Sync (PIP)
+    if (overlay && dom.overlayVideoPlayer) {
+      const { clip } = overlay;
+      const fileId = clip.file_id || state.fileId;
+      const speed = clip.speed || 1.0;
+      const offsetInClip = (state.playheadTime - overlay.clipStart) * speed;
+      const sourceTime = clip.in_point + offsetInClip;
+      const targetSrc = clip.preview_url || `/api/media/${fileId}`;
+
+      dom.overlayVideoPlayer.classList.remove('hidden');
+
+      // Apply PIP Transform (CSS Scale, Position, Rotation)
+      const ovScale = clip.scale !== undefined ? clip.scale : 1.0;
+      const ovX = clip.pos_x || 0;
+      const ovY = clip.pos_y || 0;
+      const ovRot = clip.rotation || 0;
+      dom.overlayVideoPlayer.style.transform = `translate(${ovX}%, ${ovY}%) scale(${ovScale}) rotate(${ovRot}deg)`;
+      dom.overlayVideoPlayer.style.opacity = clip.opacity !== undefined ? clip.opacity : 1.0;
+
+      if (currentLoadedOverlayFileId !== fileId) {
+        currentLoadedOverlayFileId = fileId;
+        const wasPlaying = isPlaying || state.isPlaying;
+
+        dom.overlayVideoPlayer.src = targetSrc;
+        dom.overlayVideoPlayer.onloadedmetadata = () => {
+          dom.overlayVideoPlayer.currentTime = sourceTime;
+          dom.overlayVideoPlayer.playbackRate = speed;
+          if (wasPlaying && state.isPlaying) {
+            dom.overlayVideoPlayer.play().catch(() => {});
+          }
+        };
+        dom.overlayVideoPlayer.load();
+      } else {
+        dom.overlayVideoPlayer.playbackRate = speed;
+        if (!isPlaying) {
+          dom.overlayVideoPlayer.currentTime = sourceTime;
+        } else {
+          if (Math.abs(dom.overlayVideoPlayer.currentTime - sourceTime) > 0.35) {
+            dom.overlayVideoPlayer.currentTime = sourceTime;
+          }
+          if (dom.overlayVideoPlayer.paused && state.isPlaying) {
+            dom.overlayVideoPlayer.play().catch(() => {});
+          }
+        }
+      }
+    } else if (dom.overlayVideoPlayer) {
+      dom.overlayVideoPlayer.classList.add('hidden');
+      if (!dom.overlayVideoPlayer.paused) {
+        dom.overlayVideoPlayer.pause();
+      }
+    }
+
+    // 3. Update 8-point Transform Gizmo
+    updateTransformGizmoUI();
+
+    // 4. Simultaneously sync all background audio
     syncBackgroundAudio(state.playheadTime, isPlaying, activeVideoClipId);
   }
 
@@ -916,7 +1094,7 @@
     return Math.max(0.1, (outPt - inPt) / spd);
   }
 
-  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0, file_id = null, filename = null, preview_url = null) {
+  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0, file_id = null, filename = null, preview_url = null, opts = {}) {
     const fid = file_id || state.fileId;
     return {
       id,
@@ -928,6 +1106,17 @@
       file_id: fid,
       filename: filename || (state.filename ? state.filename : null),
       preview_url: preview_url || (fid ? `/api/media/${fid}` : null),
+      // Phase 2: Audio Suite
+      denoise: opts.denoise || false,
+      denoise_level: opts.denoise_level || 'medium',
+      normalize_audio: opts.normalize_audio || false,
+      target_lufs: opts.target_lufs || -14.0,
+      // Phase 3: Transform & PIP
+      scale: opts.scale !== undefined ? opts.scale : 1.0,
+      pos_x: opts.pos_x !== undefined ? opts.pos_x : 0.0,
+      pos_y: opts.pos_y !== undefined ? opts.pos_y : 0.0,
+      rotation: opts.rotation !== undefined ? opts.rotation : 0.0,
+      opacity: opts.opacity !== undefined ? opts.opacity : 1.0,
       get duration() {
         return getClipDuration(this);
       },
@@ -1746,6 +1935,179 @@
     if (dom.inputClipIn) dom.inputClipIn.value = clip.in_point.toFixed(1);
     if (dom.inputClipOut) dom.inputClipOut.value = clip.out_point.toFixed(1);
     if (dom.selectClipTrack) dom.selectClipTrack.value = track.id;
+
+    // Transform fields (Phase 3)
+    const curScale = clip.scale !== undefined ? clip.scale : 1.0;
+    if (dom.sliderClipScale) dom.sliderClipScale.value = Math.round(curScale * 100);
+    if (dom.inspectorScaleBadge) dom.inspectorScaleBadge.textContent = `%${Math.round(curScale * 100)}`;
+    if (dom.inputClipPosX) dom.inputClipPosX.value = clip.pos_x || 0;
+    if (dom.inputClipPosY) dom.inputClipPosY.value = clip.pos_y || 0;
+    if (dom.sliderClipRotation) dom.sliderClipRotation.value = clip.rotation || 0;
+    if (dom.inspectorRotationBadge) dom.inspectorRotationBadge.textContent = `${clip.rotation || 0}°`;
+
+    // Audio Suite fields (Phase 2)
+    if (dom.checkClipDenoise) dom.checkClipDenoise.checked = !!clip.denoise;
+    if (dom.denoiseLevelContainer) {
+      dom.denoiseLevelContainer.classList.toggle('hidden', !clip.denoise);
+    }
+    const currentDenoiseLvl = clip.denoise_level || 'medium';
+    document.querySelectorAll('.denoise-level-btn').forEach((b) => {
+      if (b.dataset.level === currentDenoiseLvl) {
+        b.className = 'denoise-level-btn px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-mono cursor-pointer';
+      } else {
+        b.className = 'denoise-level-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer';
+      }
+    });
+    if (dom.checkClipLoudnorm) dom.checkClipLoudnorm.checked = !!clip.normalize_audio;
+
+    updateTransformGizmoUI();
+  }
+
+  function initTransformGizmo() {
+    if (!dom.transformGizmo || !dom.videoPreviewWrapper) return;
+
+    // Center Drag (Move X, Y)
+    let isDraggingCenter = false;
+    let startPointerX = 0;
+    let startPointerY = 0;
+    let startPosX = 0;
+    let startPosY = 0;
+
+    if (dom.gizmoCenterDrag) {
+      dom.gizmoCenterDrag.addEventListener('pointerdown', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        e.preventDefault();
+        e.stopPropagation();
+        isDraggingCenter = true;
+        startPointerX = e.clientX;
+        startPointerY = e.clientY;
+        startPosX = sel.clip.pos_x || 0;
+        startPosY = sel.clip.pos_y || 0;
+
+        const onMove = (moveEv) => {
+          if (!isDraggingCenter) return;
+          const wrapperRect = dom.videoPreviewWrapper.getBoundingClientRect();
+          const dx = moveEv.clientX - startPointerX;
+          const dy = moveEv.clientY - startPointerY;
+          let newPosX = Math.round((startPosX + (dx / wrapperRect.width) * 100) * 10) / 10;
+          let newPosY = Math.round((startPosY + (dy / wrapperRect.height) * 100) * 10) / 10;
+
+          // Magnetic snapping near center (±2.5%)
+          if (Math.abs(newPosX) < 2.5) {
+            newPosX = 0;
+            if (dom.snapGuideX) dom.snapGuideX.classList.remove('hidden');
+          } else {
+            if (dom.snapGuideX) dom.snapGuideX.classList.add('hidden');
+          }
+
+          if (Math.abs(newPosY) < 2.5) {
+            newPosY = 0;
+            if (dom.snapGuideY) dom.snapGuideY.classList.remove('hidden');
+          } else {
+            if (dom.snapGuideY) dom.snapGuideY.classList.add('hidden');
+          }
+
+          sel.clip.pos_x = Math.max(-100, Math.min(100, newPosX));
+          sel.clip.pos_y = Math.max(-100, Math.min(100, newPosY));
+
+          if (dom.inputClipPosX) dom.inputClipPosX.value = sel.clip.pos_x;
+          if (dom.inputClipPosY) dom.inputClipPosY.value = sel.clip.pos_y;
+
+          updateTransformGizmoUI();
+          syncPreviewToTimeline(state.playheadTime, false);
+        };
+
+        const onUp = () => {
+          isDraggingCenter = false;
+          if (dom.snapGuideX) dom.snapGuideX.classList.add('hidden');
+          if (dom.snapGuideY) dom.snapGuideY.classList.add('hidden');
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    }
+
+    // Corner Handles (Scale)
+    dom.transformGizmo.querySelectorAll('.gizmo-handle[data-handle]').forEach((handle) => {
+      handle.addEventListener('pointerdown', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const wrapperRect = dom.videoPreviewWrapper.getBoundingClientRect();
+        const startScale = sel.clip.scale !== undefined ? sel.clip.scale : 1.0;
+        const centerX = wrapperRect.left + wrapperRect.width / 2 + (wrapperRect.width * (sel.clip.pos_x || 0) / 100);
+        const centerY = wrapperRect.top + wrapperRect.height / 2 + (wrapperRect.height * (sel.clip.pos_y || 0) / 100);
+        const startDist = Math.hypot(e.clientX - centerX, e.clientY - centerY) || 1;
+
+        const onMove = (moveEv) => {
+          const currentDist = Math.hypot(moveEv.clientX - centerX, moveEv.clientY - centerY);
+          const ratio = currentDist / startDist;
+          let newScale = Math.round(Math.max(0.1, Math.min(2.0, startScale * ratio)) * 100) / 100;
+          sel.clip.scale = newScale;
+
+          if (dom.sliderClipScale) dom.sliderClipScale.value = Math.round(newScale * 100);
+          if (dom.inspectorScaleBadge) dom.inspectorScaleBadge.textContent = `%${Math.round(newScale * 100)}`;
+
+          updateTransformGizmoUI();
+          syncPreviewToTimeline(state.playheadTime, false);
+        };
+
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    });
+
+    // Rotation Pin
+    if (dom.gizmoRotatePin) {
+      dom.gizmoRotatePin.addEventListener('pointerdown', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const wrapperRect = dom.videoPreviewWrapper.getBoundingClientRect();
+        const centerX = wrapperRect.left + wrapperRect.width / 2 + (wrapperRect.width * (sel.clip.pos_x || 0) / 100);
+        const centerY = wrapperRect.top + wrapperRect.height / 2 + (wrapperRect.height * (sel.clip.pos_y || 0) / 100);
+        const initialAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+        const startRot = sel.clip.rotation || 0;
+
+        const onMove = (moveEv) => {
+          const currentAngle = Math.atan2(moveEv.clientY - centerY, moveEv.clientX - centerX) * (180 / Math.PI);
+          let newRot = Math.round(startRot + (currentAngle - initialAngle));
+          // Snap near 0, 90, -90, 180
+          if (Math.abs(newRot) < 3) newRot = 0;
+          if (Math.abs(newRot - 90) < 3) newRot = 90;
+          if (Math.abs(newRot + 90) < 3) newRot = -90;
+          if (Math.abs(Math.abs(newRot) - 180) < 3) newRot = 180;
+
+          sel.clip.rotation = Math.max(-180, Math.min(180, newRot));
+          if (dom.sliderClipRotation) dom.sliderClipRotation.value = sel.clip.rotation;
+          if (dom.inspectorRotationBadge) dom.inspectorRotationBadge.textContent = `${sel.clip.rotation}°`;
+
+          updateTransformGizmoUI();
+          syncPreviewToTimeline(state.playheadTime, false);
+        };
+
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    }
   }
 
   function initClipInspectorListeners() {
@@ -1825,6 +2187,133 @@
         }
       });
     }
+
+    // Scale Slider
+    if (dom.sliderClipScale) {
+      dom.sliderClipScale.addEventListener('input', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.scale = parseInt(e.target.value, 10) / 100;
+        if (dom.inspectorScaleBadge) dom.inspectorScaleBadge.textContent = `%${e.target.value}`;
+        updateTransformGizmoUI();
+        syncPreviewToTimeline(state.playheadTime, false);
+      });
+    }
+
+    // Position Inputs
+    if (dom.inputClipPosX) {
+      dom.inputClipPosX.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.pos_x = parseFloat(e.target.value) || 0;
+        updateTransformGizmoUI();
+        syncPreviewToTimeline(state.playheadTime, false);
+      });
+    }
+    if (dom.inputClipPosY) {
+      dom.inputClipPosY.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.pos_y = parseFloat(e.target.value) || 0;
+        updateTransformGizmoUI();
+        syncPreviewToTimeline(state.playheadTime, false);
+      });
+    }
+
+    // Rotation Slider
+    if (dom.sliderClipRotation) {
+      dom.sliderClipRotation.addEventListener('input', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.rotation = parseInt(e.target.value, 10) || 0;
+        if (dom.inspectorRotationBadge) dom.inspectorRotationBadge.textContent = `${sel.clip.rotation}°`;
+        updateTransformGizmoUI();
+        syncPreviewToTimeline(state.playheadTime, false);
+      });
+    }
+
+    // Quick PIP Presets
+    document.querySelectorAll('.pip-preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        const preset = btn.dataset.preset;
+        if (preset === 'pip-br') {
+          sel.clip.scale = 0.35;
+          sel.clip.pos_x = 28;
+          sel.clip.pos_y = 28;
+        } else if (preset === 'pip-tl') {
+          sel.clip.scale = 0.35;
+          sel.clip.pos_x = -28;
+          sel.clip.pos_y = -28;
+        } else if (preset === 'pip-center') {
+          sel.clip.scale = 1.0;
+          sel.clip.pos_x = 0;
+          sel.clip.pos_y = 0;
+        }
+        sel.clip.rotation = 0;
+        updateClipInspector();
+        syncPreviewToTimeline(state.playheadTime, false);
+        showToast('PIP Şablonu uygulandı 📐', 'info');
+      });
+    });
+
+    // Reset Transform Button
+    if (dom.btnResetTransform) {
+      dom.btnResetTransform.addEventListener('click', () => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.scale = 1.0;
+        sel.clip.pos_x = 0;
+        sel.clip.pos_y = 0;
+        sel.clip.rotation = 0;
+        updateClipInspector();
+        syncPreviewToTimeline(state.playheadTime, false);
+        showToast('Dönüştürme ayarları sıfırlandı 🔄', 'info');
+      });
+    }
+
+    // Denoise Toggle
+    if (dom.checkClipDenoise) {
+      dom.checkClipDenoise.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.denoise = e.target.checked;
+        if (dom.denoiseLevelContainer) {
+          dom.denoiseLevelContainer.classList.toggle('hidden', !sel.clip.denoise);
+        }
+        showToast(sel.clip.denoise ? 'Dip Ses Temizleme aktif edildi 🎙️' : 'Dip Ses Temizleme kapatıldı', 'info');
+      });
+    }
+
+    // Denoise Level Buttons
+    document.querySelectorAll('.denoise-level-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.denoise_level = btn.dataset.level;
+        document.querySelectorAll('.denoise-level-btn').forEach((b) => {
+          if (b === btn) {
+            b.className = 'denoise-level-btn px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-mono cursor-pointer';
+          } else {
+            b.className = 'denoise-level-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer';
+          }
+        });
+      });
+    });
+
+    // Loudnorm Toggle
+    if (dom.checkClipLoudnorm) {
+      dom.checkClipLoudnorm.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.normalize_audio = e.target.checked;
+        showToast(sel.clip.normalize_audio ? 'Ses Normalizasyonu (-14 LUFS) aktif 🔊' : 'Ses Normalizasyonu kapatıldı', 'info');
+      });
+    }
+
+    // Initialize Gizmo Drag & Scale
+    initTransformGizmo();
   }
 
   // --- Playhead & Ruler Scrubber ---
@@ -3248,8 +3737,22 @@
           speed: c.speed || 1.0,
           volume: c.volume !== undefined ? c.volume : 1.0,
           file_id: c.file_id || state.fileId,
+          denoise: !!c.denoise,
+          denoise_level: c.denoise_level || 'medium',
+          normalize_audio: !!c.normalize_audio,
+          target_lufs: c.target_lufs || -14.0,
+          scale: c.scale !== undefined ? c.scale : 1.0,
+          pos_x: c.pos_x || 0.0,
+          pos_y: c.pos_y || 0.0,
+          rotation: c.rotation || 0.0,
+          opacity: c.opacity !== undefined ? c.opacity : 1.0,
         })),
       }));
+    }
+
+    if (dom.checkGlobalLoudnorm && dom.checkGlobalLoudnorm.checked) {
+      config.normalize_audio = true;
+      config.target_lufs = -14.0;
     }
 
     // Aspect Ratio

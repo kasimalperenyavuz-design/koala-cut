@@ -49,6 +49,17 @@ class TimelineClip(BaseModel):
     speed: float = Field(default=1.0, gt=0.0, description="Playback speed multiplier (e.g. 0.5x, 1.0x, 2.0x)")
     volume: float = Field(default=1.0, ge=0.0, description="Audio volume multiplier (1.0 = 100%)")
     file_id: Optional[str] = Field(default=None, description="Source file ID if multi-file project")
+    # Audio Suite fields (Phase 2)
+    denoise: bool = Field(default=False, description="Apply adaptive FFT noise reduction")
+    denoise_level: Literal["low", "medium", "high"] = Field(default="medium", description="Noise reduction intensity")
+    normalize_audio: bool = Field(default=False, description="Apply EBU R128 loudness normalization")
+    target_lufs: float = Field(default=-14.0, description="Target integrated loudness in LUFS")
+    # Visual Transform & PIP fields (Phase 3)
+    pos_x: float = Field(default=0.0, description="Horizontal offset percentage (-100% to +100%) from center")
+    pos_y: float = Field(default=0.0, description="Vertical offset percentage (-100% to +100%) from center")
+    scale: float = Field(default=1.0, gt=0.0, le=5.0, description="Visual scale multiplier (1.0 = 100%, 0.35 = PIP)")
+    rotation: float = Field(default=0.0, ge=-180.0, le=180.0, description="Rotation angle in degrees")
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0, description="Opacity (1.0 = 100% opaque)")
 
     @model_validator(mode="after")
     def validate_clip(self) -> "TimelineClip":
@@ -102,6 +113,8 @@ class VideoFilterConfig(BaseModel):
     target_size_mb: Optional[float] = Field(default=None, gt=0.0, description="Target file size in Megabytes")
     audio_bitrate_kbps: int = Field(default=128, gt=0, description="Audio bitrate in kbps")
     remove_audio: bool = Field(default=False, description="Strip audio stream entirely")
+    normalize_audio: bool = Field(default=False, description="Global loudness normalization (EBU R128)")
+    target_lufs: float = Field(default=-14.0, description="Target integrated loudness in LUFS (-14 for web/social)")
     fast_seek: bool = Field(default=True, description="Place trim flags before input for fast seek")
     hwaccel: str = Field(default="auto", description="Hardware acceleration mode ('auto', 'nvenc', 'qsv', 'amf', 'cpu')")
     timeline_tracks: Optional[list[TimelineTrack]] = Field(
@@ -397,16 +410,24 @@ class FFmpegCommandBuilder:
         input_file = os.path.normpath(input_path)
         output_file = os.path.normpath(output_path)
 
-        # Collect video clips from all video tracks (CapCut NLE mode)
-        timeline_clips: list[tuple[TimelineClip, bool]] = []
+        # Separate base video track (v1) and overlay video tracks (v2, v3 etc.)
+        base_video_clips: list[tuple[TimelineClip, bool]] = []
+        overlay_video_clips: list[tuple[TimelineClip, bool]] = []
+        
         if config.timeline_tracks:
             for t in config.timeline_tracks:
                 if t.type == "video":
-                    for c in t.clips:
-                        timeline_clips.append((c, t.muted))
-            timeline_clips.sort(key=lambda item: item[0].timeline_start)
+                    if t.id == "v1" or not base_video_clips:
+                        for c in t.clips:
+                            base_video_clips.append((c, t.muted))
+                    else:
+                        for c in t.clips:
+                            overlay_video_clips.append((c, t.muted))
+            base_video_clips.sort(key=lambda item: item[0].timeline_start)
+            overlay_video_clips.sort(key=lambda item: item[0].timeline_start)
 
-        has_timeline = len(timeline_clips) > 0
+        timeline_clips = base_video_clips if base_video_clips else overlay_video_clips
+        has_timeline = len(timeline_clips) > 0 or len(overlay_video_clips) > 0
 
         keep_intervals = self.calculate_keep_intervals(
             source_duration=source_duration,
@@ -425,7 +446,7 @@ class FFmpegCommandBuilder:
 
         # Check for multiple tracks with media clips (e.g. V1 & V2, or V1 & A1)
         tracks_with_clips = [t for t in (config.timeline_tracks or []) if t.clips]
-        is_multi_track = len(tracks_with_clips) > 1 or any(t.type == "audio" for t in tracks_with_clips)
+        is_multi_track = len(tracks_with_clips) > 1 or any(t.type == "audio" for t in tracks_with_clips) or len(overlay_video_clips) > 0
 
         if has_timeline:
             input_files: list[str] = [input_file]
@@ -437,12 +458,12 @@ class FFmpegCommandBuilder:
                         input_files.append(norm_p)
                     file_to_idx[fid] = input_files.index(norm_p)
 
-            n_clips = len(timeline_clips)
+            n_clips = len(base_video_clips)
             complex_filters: list[str] = []
             v_inputs: list[str] = []
             a_inputs: list[str] = []
 
-            for i, (clip, track_muted) in enumerate(timeline_clips):
+            for i, (clip, track_muted) in enumerate(base_video_clips):
                 v_tag = f"v{i}"
                 in_idx = file_to_idx.get(clip.file_id, 0) if clip.file_id else 0
                 speed = clip.speed if clip.speed > 0 else 1.0
@@ -453,12 +474,22 @@ class FFmpegCommandBuilder:
 
                 if not is_multi_track and not config.remove_audio and not track_muted:
                     a_tag = f"a{i}"
-                    atrim_filter = f"[{in_idx}:a]atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f},asetpts=PTS-STARTPTS"
+                    atrim_parts = [
+                        f"atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f}",
+                        "asetpts=PTS-STARTPTS"
+                    ]
                     if speed != 1.0:
-                        atrim_filter += f",atempo={speed:.4f}"
+                        atrim_parts.append(f"atempo={speed:.4f}")
                     if clip.volume != 1.0:
-                        atrim_filter += f",volume={clip.volume:.2f}"
-                    atrim_filter += f"[{a_tag}]"
+                        atrim_parts.append(f"volume={clip.volume:.2f}")
+                    if clip.denoise:
+                        nr_val = 12 if clip.denoise_level == "low" else (25 if clip.denoise_level == "high" else 18)
+                        nf_val = -50 if clip.denoise_level == "low" else (-40 if clip.denoise_level == "high" else -45)
+                        atrim_parts.extend(["highpass=f=80", f"afftdn=nr={nr_val}:nf={nf_val}:tn=1", "lowpass=f=12000"])
+                    if clip.normalize_audio or config.normalize_audio:
+                        target_l = clip.target_lufs if clip.normalize_audio else config.target_lufs
+                        atrim_parts.append(f"loudnorm=I={target_l:.1f}:LRA=11:TP=-1.5")
+                    atrim_filter = f"[{in_idx}:a]" + ",".join(atrim_parts) + f"[{a_tag}]"
                     complex_filters.append(atrim_filter)
                     a_inputs.append(f"[{a_tag}]")
 
@@ -483,6 +514,15 @@ class FFmpegCommandBuilder:
                         afilters.append(f"atempo={speed:.4f}")
                     if aclip.volume != 1.0:
                         afilters.append(f"volume={aclip.volume:.2f}")
+                    # Phase 2: Denoise filter
+                    if aclip.denoise:
+                        nr_val = 12 if aclip.denoise_level == "low" else (25 if aclip.denoise_level == "high" else 18)
+                        nf_val = -50 if aclip.denoise_level == "low" else (-40 if aclip.denoise_level == "high" else -45)
+                        afilters.extend(["highpass=f=80", f"afftdn=nr={nr_val}:nf={nf_val}:tn=1", "lowpass=f=12000"])
+                    # Phase 2: Loudness Normalization
+                    if aclip.normalize_audio or config.normalize_audio:
+                        target_l = aclip.target_lufs if aclip.normalize_audio else config.target_lufs
+                        afilters.append(f"loudnorm=I={target_l:.1f}:LRA=11:TP=-1.5")
                     afilters.append(f"adelay={delay_ms}|{delay_ms}")
                     filter_chain = f"[{in_idx}:a]" + ",".join(afilters) + f"[{a_tag}]"
                     complex_filters.append(filter_chain)
@@ -499,9 +539,51 @@ class FFmpegCommandBuilder:
                     complex_filters.append(f"{concat_parts}concat=n={n_clips}:v=1:a=0[v_concat]")
                     current_v = "[v_concat]"
                     current_a = None
-            else:
+            elif n_clips == 1:
                 current_v = v_inputs[0]
                 current_a = a_inputs[0] if (not is_multi_track and len(a_inputs) == 1) else None
+            else:
+                current_v = "[0:v]"
+                current_a = None
+
+            # Phase 3: Multi-Layer Video Compositing / PIP Overlays
+            if overlay_video_clips:
+                for k, (ov_clip, _) in enumerate(overlay_video_clips):
+                    in_idx = file_to_idx.get(ov_clip.file_id, 0) if ov_clip.file_id else 0
+                    speed = ov_clip.speed if ov_clip.speed > 0 else 1.0
+                    pts_speed = f"setpts={1.0 / speed:.4f}*(PTS-STARTPTS)" if speed != 1.0 else "setpts=PTS-STARTPTS"
+                    ov_tag = f"ov_trim_{k}"
+                    complex_filters.append(f"[{in_idx}:v]trim=start={ov_clip.in_point:.3f}:end={ov_clip.out_point:.3f},{pts_speed}[{ov_tag}]")
+                    
+                    ov_proc_tag = f"ov_proc_{k}"
+                    ov_proc_filters = []
+                    # Scale (PIP sizing)
+                    if ov_clip.scale != 1.0:
+                        ov_proc_filters.append(f"scale=iw*{ov_clip.scale:.3f}:-1")
+                    # Rotation
+                    if ov_clip.rotation != 0.0:
+                        rot_rad = f"{ov_clip.rotation:.2f}*PI/180"
+                        ov_proc_filters.append(f"rotate={rot_rad}:ow=rotw({rot_rad}):oh=roth({rot_rad}):c=none")
+                    # Opacity
+                    if ov_clip.opacity < 1.0:
+                        ov_proc_filters.append(f"format=yuva420p,colorchannelmixer=aa={ov_clip.opacity:.2f}")
+
+                    if ov_proc_filters:
+                        complex_filters.append(f"[{ov_tag}]{','.join(ov_proc_filters)}[{ov_proc_tag}]")
+                    else:
+                        ov_proc_tag = ov_tag
+
+                    # Overlay onto current base video stream
+                    # pos_x, pos_y are percentage offsets from center (-100 to +100)
+                    pos_x_expr = f"(W-w)/2+W*({ov_clip.pos_x:.2f}/100)" if ov_clip.pos_x != 0 else "(W-w)/2"
+                    pos_y_expr = f"(H-h)/2+H*({ov_clip.pos_y:.2f}/100)" if ov_clip.pos_y != 0 else "(H-h)/2"
+                    enable_expr = f"between(t,{ov_clip.timeline_start:.3f},{ov_clip.timeline_end:.3f})"
+                    
+                    next_v = f"[v_pip_{k}]"
+                    complex_filters.append(
+                        f"{current_v}[{ov_proc_tag}]overlay=x='{pos_x_expr}':y='{pos_y_expr}':enable='{enable_expr}'{next_v}"
+                    )
+                    current_v = next_v
 
             # If multi-track audio was gathered, mix all audio inputs together using amix
             if is_multi_track and not config.remove_audio and a_inputs:
@@ -649,7 +731,9 @@ class FFmpegCommandBuilder:
         if config.remove_audio:
             cmd.append("-an")
         else:
-            if config.mode == "copy":
+            if not has_timeline and not has_multi_cuts and config.normalize_audio:
+                cmd.extend(["-af", f"loudnorm=I={config.target_lufs:.1f}:LRA=11:TP=-1.5"])
+            if config.mode == "copy" and not config.normalize_audio:
                 cmd.extend(["-c:a", "copy"])
             else:
                 cmd.extend(["-c:a", "aac", "-b:a", f"{config.audio_bitrate_kbps}k"])

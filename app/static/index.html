@@ -219,14 +219,51 @@
           
           <!-- Video Player Container -->
           <div class="glass-panel rounded-2xl p-3 border border-white/10 shadow-2xl relative overflow-hidden">
-            <div class="video-preview-wrapper rounded-xl overflow-hidden relative flex items-center justify-center bg-black min-h-[260px] max-h-[460px]">
-              <video id="video-player" class="w-full h-full max-h-[460px] object-contain" playsinline preload="metadata"></video>
+            <div id="video-preview-wrapper" class="video-preview-wrapper rounded-xl overflow-hidden relative flex items-center justify-center bg-black min-h-[260px] max-h-[460px]">
+              <video id="video-player" class="w-full h-full max-h-[460px] object-contain relative z-10" playsinline preload="metadata"></video>
               
+              <!-- Secondary Overlay Video Player (For Live PIP / Multi-Layer Preview) -->
+              <video id="overlay-video-player" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden z-20" muted playsinline preload="metadata"></video>
+
+              <!-- Magnetic Canvas Snapping Guides -->
+              <div id="snap-guide-x" class="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-cyan-400 pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
+              <div id="snap-guide-y" class="absolute left-0 right-0 top-1/2 h-[1.5px] bg-cyan-400 pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
+
+              <!-- Interactive Transform Gizmo (CapCut / Premiere 8-Point Bounding Box) -->
+              <div id="transform-gizmo" class="absolute hidden border-2 border-indigo-500 bg-indigo-500/10 rounded-sm pointer-events-auto select-none z-30 transition-shadow shadow-[0_0_15px_rgba(99,102,241,0.4)]">
+                <!-- 4 Corners (Proportional Scale) -->
+                <div class="gizmo-handle absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize shadow-md hover:scale-125 transition-transform" data-handle="nw"></div>
+                <div class="gizmo-handle absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize shadow-md hover:scale-125 transition-transform" data-handle="ne"></div>
+                <div class="gizmo-handle absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize shadow-md hover:scale-125 transition-transform" data-handle="se"></div>
+                <div class="gizmo-handle absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize shadow-md hover:scale-125 transition-transform" data-handle="sw"></div>
+                
+                <!-- 4 Edges -->
+                <div class="gizmo-handle absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ns-resize" data-handle="n"></div>
+                <div class="gizmo-handle absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ns-resize" data-handle="s"></div>
+                <div class="gizmo-handle absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ew-resize" data-handle="w"></div>
+                <div class="gizmo-handle absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ew-resize" data-handle="e"></div>
+
+                <!-- Top Rotation Handle -->
+                <div id="gizmo-rotate-pin" class="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-grab group">
+                  <div class="w-3.5 h-3.5 rounded-full bg-indigo-600 border border-white flex items-center justify-center text-[8px] text-white shadow hover:scale-110">
+                    <i data-lucide="rotate-cw" class="w-2.5 h-2.5"></i>
+                  </div>
+                  <div class="w-[1px] h-3 bg-indigo-400"></div>
+                </div>
+
+                <!-- Center Drag Region -->
+                <div id="gizmo-center-drag" class="absolute inset-2 cursor-move flex items-center justify-center">
+                  <div class="w-4 h-4 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center pointer-events-none opacity-40">
+                    <i data-lucide="move" class="w-2.5 h-2.5 text-indigo-300"></i>
+                  </div>
+                </div>
+              </div>
+
               <!-- Aspect Ratio Overlay Guide (Visual Helper) -->
               <div id="aspect-guide-overlay" class="absolute inset-0 pointer-events-none transition-all duration-300"></div>
 
               <!-- Big Play/Pause Center Indicator (Fades out) -->
-              <div id="video-center-btn" class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-all cursor-pointer group">
+              <div id="video-center-btn" class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-all cursor-pointer group z-20">
                 <div class="w-14 h-14 rounded-full bg-emerald-600/80 group-hover:bg-emerald-600 flex items-center justify-center text-white shadow-xl shadow-emerald-600/40 transform group-hover:scale-110 transition-all">
                   <i id="center-play-icon" data-lucide="play" class="w-7 h-7 ml-1 fill-white"></i>
                 </div>
@@ -649,6 +686,100 @@
                   </div>
                 </div>
 
+                <!-- Transform & PIP Card (Phase 3) -->
+                <div class="glass-card rounded-xl p-3.5 border border-indigo-500/20 bg-indigo-950/10 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-indigo-200 font-semibold flex items-center gap-1.5">
+                      <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+                      Dönüştürme & Resim İçinde Resim (PIP):
+                    </span>
+                    <button id="btn-reset-transform" class="text-[10px] text-indigo-400 hover:text-indigo-200 underline cursor-pointer">Sıfırla</button>
+                  </div>
+
+                  <!-- Scale Slider -->
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="text-[11px] text-slate-400">Boyut / Ölçek:</span>
+                      <span id="inspector-scale-badge" class="font-mono text-indigo-300 font-bold text-xs bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">%100</span>
+                    </div>
+                    <input type="range" id="slider-clip-scale" min="10" max="200" step="5" value="100" class="w-full">
+                  </div>
+
+                  <!-- Quick PIP Presets -->
+                  <div class="space-y-1">
+                    <span class="text-[10px] text-slate-400 font-medium block">Hızlı PIP Şablonları:</span>
+                    <div class="grid grid-cols-3 gap-1.5">
+                      <button class="pip-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-medium text-center cursor-pointer transition-colors" data-preset="pip-br">↘ Sağ Alt</button>
+                      <button class="pip-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-medium text-center cursor-pointer transition-colors" data-preset="pip-tl">↖ Sol Üst</button>
+                      <button class="pip-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-medium text-center cursor-pointer transition-colors" data-preset="pip-center">⏺ Merkez</button>
+                    </div>
+                  </div>
+
+                  <!-- Position X & Y -->
+                  <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="space-y-1">
+                      <label class="text-[10px] text-slate-400">Konum X (%):</label>
+                      <input type="number" id="input-clip-pos-x" min="-100" max="100" step="1" value="0" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white outline-none">
+                    </div>
+                    <div class="space-y-1">
+                      <label class="text-[10px] text-slate-400">Konum Y (%):</label>
+                      <input type="number" id="input-clip-pos-y" min="-100" max="100" step="1" value="0" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white outline-none">
+                    </div>
+                  </div>
+
+                  <!-- Rotation Slider -->
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="text-[11px] text-slate-400">Döndürme (Açı):</span>
+                      <span id="inspector-rotation-badge" class="font-mono text-indigo-300 font-bold text-xs bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">0°</span>
+                    </div>
+                    <input type="range" id="slider-clip-rotation" min="-180" max="180" step="1" value="0" class="w-full">
+                  </div>
+                </div>
+
+                <!-- Audio Suite Card (Phase 2) -->
+                <div class="glass-card rounded-xl p-3.5 border border-emerald-500/20 bg-emerald-950/10 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-emerald-200 font-semibold flex items-center gap-1.5">
+                      <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
+                      Stüdyo Ses İyileştirme:
+                    </span>
+                  </div>
+
+                  <!-- Denoise Toggle -->
+                  <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-2">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <span class="text-xs font-medium text-white block">Dip Ses & Uğultu Temizle</span>
+                        <span class="text-[10px] text-slate-400 block">Klima, fan ve mikrofon cızırtısını süzer</span>
+                      </div>
+                      <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="check-clip-denoise" class="sr-only peer">
+                        <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+                      </label>
+                    </div>
+                    <!-- Denoise Level -->
+                    <div id="denoise-level-container" class="flex items-center gap-1 pt-1 hidden">
+                      <span class="text-[10px] text-slate-400 mr-1">Yoğunluk:</span>
+                      <button class="denoise-level-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer" data-level="low">Düşük</button>
+                      <button class="denoise-level-btn px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-mono cursor-pointer" data-level="medium">Orta</button>
+                      <button class="denoise-level-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer" data-level="high">Yüksek</button>
+                    </div>
+                  </div>
+
+                  <!-- Loudnorm Toggle -->
+                  <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-medium text-white block">Ses Seviyesini Eşitle (Normalizasyon)</span>
+                      <span class="text-[10px] text-slate-400 block">EBU R128 (-14 LUFS YouTube/Reels standardı)</span>
+                    </div>
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" id="check-clip-loudnorm" class="sr-only peer">
+                      <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+                    </label>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -671,6 +802,18 @@
                 <label class="inline-flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" id="check-remove-audio" class="sr-only peer">
                   <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-500 relative"></div>
+                </label>
+              </div>
+
+              <!-- Global Loudness Normalization Card -->
+              <div class="p-3.5 rounded-xl bg-slate-900/80 border border-white/5 flex items-center justify-between">
+                <div class="space-y-0.5">
+                  <span class="text-xs font-semibold text-white block">Tüm Projede Sesi Eşitle (Normalize)</span>
+                  <span class="text-[11px] text-slate-400 block">EBU R128 (-14 LUFS) ile videodaki tüm sesleri yayın standardına dengeler</span>
+                </div>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="check-global-loudnorm" class="sr-only peer">
+                  <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
                 </label>
               </div>
 
