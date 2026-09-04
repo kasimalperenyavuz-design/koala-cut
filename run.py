@@ -43,10 +43,42 @@ def ensure_directories() -> None:
     logger.info("Storage directories ready at: %s and %s", UPLOAD_DIR, OUTPUT_DIR)
 
 
-def open_browser(url: str, delay: float = 0.8) -> None:
-    """Open default web browser after a short delay."""
+def open_desktop_window(url: str, delay: float = 0.8) -> None:
+    """Launch as a standalone native desktop application window (no browser tabs or URL bar)."""
     def _open():
-        logger.info("Opening browser at %s", url)
+        import subprocess
+
+        # Priority candidates for App Mode (dedicated desktop window)
+        candidates = [
+            os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+            os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+            os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+        ]
+
+        local_appdata = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        user_profile_dir = Path(local_appdata) / "koala-cut" / "desktop_profile"
+        user_profile_dir.mkdir(parents=True, exist_ok=True)
+
+        for browser_exe in candidates:
+            if os.path.isfile(browser_exe):
+                try:
+                    logger.info("Launching native desktop app window via %s", browser_exe)
+                    subprocess.Popen([
+                        browser_exe,
+                        f"--app={url}",
+                        "--window-size=1420,900",
+                        "--window-position=center",
+                        f"--user-data-dir={user_profile_dir}",
+                        "--app-id=koala-cut",
+                    ])
+                    return
+                except Exception as exc:
+                    logger.warning("Could not launch desktop app mode via %s: %s", browser_exe, exc)
+
+        # Fallback to standard web browser if neither Edge nor Chrome is found
+        logger.info("Falling back to default web browser at %s", url)
         webbrowser.open(url)
 
     timer = threading.Timer(delay, _open)
@@ -92,7 +124,8 @@ def main() -> None:
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
     parser.add_argument("--reload", action="store_true", default=False, help="Enable auto-reload")
-    parser.add_argument("--no-browser", action="store_true", default=False, help="Do not open browser")
+    parser.add_argument("--browser", action="store_true", default=False, help="Open in regular browser instead of desktop window")
+    parser.add_argument("--no-browser", action="store_true", default=False, help="Do not open any window")
     args = parser.parse_args()
 
     try:
@@ -104,7 +137,11 @@ def main() -> None:
         logger.info("Starting koala-cut Studio on %s", target_url)
 
         if not args.no_browser:
-            open_browser(target_url, delay=0.8)
+            if args.browser:
+                logger.info("Opening browser at %s", target_url)
+                threading.Timer(0.8, lambda: webbrowser.open(target_url)).start()
+            else:
+                open_desktop_window(target_url, delay=0.8)
 
         # In frozen mode, reload must be False and app is passed as an object
         reload_mode = False if getattr(sys, "frozen", False) else args.reload

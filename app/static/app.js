@@ -1625,22 +1625,30 @@
   let contextClickedTime = 0;
 
   function initTimelineContextMenu() {
-    if (!dom.capcutTimelineStudio || !dom.timelineContextMenu) return;
+    if (!dom.timelineContextMenu) return;
 
-    dom.capcutTimelineStudio.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      openContextMenu(e);
-    });
-
-    if (dom.viewEditor) {
-      dom.viewEditor.addEventListener('contextmenu', (e) => {
-        if (e.target.closest('#capcut-timeline-studio') || e.target.closest('#video-player-container')) {
-          e.preventDefault();
+    // 1. GLOBAL INTERCEPT: Block browser's native context menu across entire window!
+    document.addEventListener(
+      'contextmenu',
+      (e) => {
+        // Allow native context menu ONLY on editable text input / textarea
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+          return;
         }
-      });
-    }
+        e.preventDefault();
+        e.stopPropagation();
+
+        // If user is in editor view, open our custom NLE context menu
+        if (state.view === 'editor') {
+          openContextMenu(e);
+        }
+      },
+      { capture: true }
+    );
 
     function openContextMenu(e) {
+      if (!dom.timelineContextMenu) return;
+
       const clipCard = e.target.closest('.timeline-clip-card, .timeline-audio-clip-card');
       const canvasRect = dom.timelineCanvas ? dom.timelineCanvas.getBoundingClientRect() : { left: 0 };
       const clickOffset = e.clientX - canvasRect.left;
@@ -1700,8 +1708,16 @@
       }
     }
 
-    window.addEventListener('pointerdown', (e) => {
-      if (dom.timelineContextMenu && !dom.timelineContextMenu.contains(e.target)) {
+    // Dismiss only on left-click outside context menu
+    document.addEventListener('pointerdown', (e) => {
+      if (e.button === 0 && dom.timelineContextMenu && !dom.timelineContextMenu.contains(e.target)) {
+        closeContextMenu();
+      }
+    });
+
+    // Dismiss on Escape key
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
         closeContextMenu();
       }
     });
