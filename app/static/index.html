@@ -255,151 +255,6 @@
             </div>
           </div>
 
-          <!-- Timeline & NLE Editor Card -->
-          <div class="glass-panel rounded-2xl p-4 sm:p-5 border border-white/10 space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i data-lucide="scissors" class="w-4 h-4 text-emerald-400"></i>
-                <span class="font-bold text-sm text-white">Zaman Çizelgesi & NLE Klip Kurgusu</span>
-                <span id="clips-count-badge" class="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/30">
-                  1 Klip
-                </span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-xs text-slate-400">Net Süre:</span>
-                <span id="trim-duration-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/30">
-                  00:00.0
-                </span>
-              </div>
-            </div>
-
-            <!-- Interactive Dual-Handle Timeline Scrubber Track -->
-            <div class="timeline-container px-2 py-1">
-              <div id="timeline-track" class="timeline-track relative cursor-pointer" title="Zaman çizgisinde tıklayarak sarın">
-                <div class="timeline-waveform-bg"></div>
-                <div id="timeline-active-region" class="timeline-active-region" style="left: 0%; width: 100%;"></div>
-                <div id="timeline-cut-markers" class="absolute inset-0 pointer-events-none"></div>
-                
-                <!-- Playhead Indicator -->
-                <div id="timeline-playhead" class="timeline-playhead" style="left: 0%;"></div>
-
-                <!-- Start Handle (In-Point) -->
-                <div id="handle-start" class="timeline-handle timeline-handle-start" style="left: 0%;">
-                  <div class="timeline-handle-bar"></div>
-                </div>
-
-                <!-- End Handle (Out-Point) -->
-                <div id="handle-end" class="timeline-handle timeline-handle-end" style="left: 100%;">
-                  <div class="timeline-handle-bar"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- NLE Interactive Clips Multi-Segment Track -->
-            <div class="space-y-1.5">
-              <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
-                <span class="font-medium flex items-center gap-1">
-                  <i data-lucide="film" class="w-3 h-3 text-indigo-400"></i>
-                  Kurgu Klipleri (Seçmek için klibe tıklayın):
-                </span>
-                <span id="timeline-selection-hint" class="text-[10px] font-mono text-slate-400">Seçili klip: Yok</span>
-              </div>
-              <div id="timeline-clips-track" class="min-h-[44px] p-1.5 rounded-xl bg-slate-900/90 border border-white/10 flex items-center gap-1.5 overflow-x-auto select-none custom-scrollbar">
-                <!-- Dynamically populated via app.js -->
-              </div>
-            </div>
-
-            <!-- NLE Editing Action Toolbar -->
-            <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900/80 border border-white/5 text-xs">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <!-- Split Button -->
-                <button id="btn-split-clip" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 hover:border-indigo-400 transition-all flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm active:scale-95" title="İmleçten İkiye Böl (Kısayol: S)">
-                  <i data-lucide="scissors" class="w-3.5 h-3.5 text-indigo-400"></i>
-                  <span>Böl</span>
-                  <kbd class="px-1.5 py-0.5 text-[9px] bg-slate-800 rounded border border-white/10 font-mono text-slate-300 font-bold">S</kbd>
-                </button>
-
-                <!-- Delete Selected Clip Button -->
-                <button id="btn-delete-clip" class="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 transition-all flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm active:scale-95 opacity-50 pointer-events-none" title="Seçili Klibi Sil (Kısayol: Delete)">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
-                  <span>Seçileni Sil</span>
-                  <kbd class="px-1.5 py-0.5 text-[9px] bg-slate-800 rounded border border-white/10 font-mono text-slate-300 font-bold">Del</kbd>
-                </button>
-
-                <!-- Undo Button -->
-                <button id="btn-undo-timeline" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/5 transition-colors cursor-pointer" title="Geri Al (Ctrl+Z)">
-                  <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
-                </button>
-
-                <!-- Reset Timeline Button -->
-                <button id="btn-reset-timeline" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-white/5 transition-colors cursor-pointer" title="Tüm Klipleri Birleştir & Sıfırla">
-                  <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <!-- Play Trim Preview -->
-                <button id="btn-preview-trim" class="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition-colors flex items-center gap-1.5 font-medium cursor-pointer" title="Silinen kısımları atlayarak önizle">
-                  <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
-                  <span>Kurguyu Oynat</span>
-                </button>
-
-                <!-- Open Keyboard Shortcuts Modal -->
-                <button id="btn-open-shortcuts" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 hover:border-amber-500/40 transition-colors flex items-center gap-1.5 cursor-pointer" title="Klavye Kısayolları Rehberi">
-                  <i data-lucide="keyboard" class="w-3.5 h-3.5 text-amber-400"></i>
-                  <span class="hidden sm:inline">Kısayollar</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Timecode Precise Inputs (Collapsible) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <!-- Start Time Box -->
-              <div class="glass-card rounded-xl p-3 border border-white/5 space-y-2">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-slate-400 font-medium flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Başlangıç Sınırı
-                  </span>
-                  <button id="btn-set-start-playhead" class="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer">
-                    İmleçten Al
-                  </button>
-                </div>
-                <div class="flex items-center gap-2">
-                  <input type="number" id="input-start-seconds" step="0.1" min="0" value="0.0" class="w-full bg-slate-900/90 border border-slate-700/80 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white outline-none">
-                  <span class="text-xs text-slate-500 font-mono">sn</span>
-                </div>
-              </div>
-
-              <!-- End Time Box -->
-              <div class="glass-card rounded-xl p-3 border border-white/5 space-y-2">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-slate-400 font-medium flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-teal-500"></span> Bitiş Sınırı
-                  </span>
-                  <button id="btn-set-end-playhead" class="text-[11px] text-teal-400 hover:text-teal-300 hover:underline cursor-pointer">
-                    İmleçten Al
-                  </button>
-                </div>
-                <div class="flex items-center gap-2">
-                  <input type="number" id="input-end-seconds" step="0.1" min="0" value="0.0" class="w-full bg-slate-900/90 border border-slate-700/80 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white outline-none">
-                  <span class="text-xs text-slate-500 font-mono">sn</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Trim / Cut Saving Status -->
-            <div class="flex items-center justify-between pt-1 text-xs">
-              <button id="btn-reset-trim" class="text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 cursor-pointer text-xs">
-                <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
-                <span>Tüm Aralığı Koru</span>
-              </button>
-
-              <div id="trim-savings-pill" class="text-[11px] text-slate-400 font-mono">
-                Videonun %100'ü korunuyor
-              </div>
-            </div>
-
-          </div>
         </div>
 
         <!-- RIGHT COLUMN: Transformation & Compression Inspector (5 cols on lg) -->
@@ -418,9 +273,9 @@
                 <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i>
                 <span>Sıkıştır</span>
               </button>
-              <button id="tab-nav-cut" class="inspector-tab-btn py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="cut">
-                <i data-lucide="scissors-line-dashed" class="w-3.5 h-3.5 text-rose-400"></i>
-                <span>Bölüm Sil</span>
+              <button id="tab-nav-clip" class="inspector-tab-btn py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="clip">
+                <i data-lucide="clapperboard" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span>Klip</span>
               </button>
               <button id="tab-nav-audio" class="inspector-tab-btn py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="audio">
                 <i data-lucide="volume-2" class="w-3.5 h-3.5 text-indigo-400"></i>
@@ -689,51 +544,100 @@
               </div>
             </div>
 
-            <!-- TAB 3: İSTENMEYEN BÖLÜMLERİ ÇIKAR (CUT OUTS) -->
-            <div id="tab-panel-cut" class="p-5 space-y-4 hidden">
+            <!-- TAB 3: KLİP MÜFETTİŞİ (CLIP INSPECTOR) -->
+            <div id="tab-panel-clip" class="p-5 space-y-4 hidden">
               <div>
                 <div class="flex items-center justify-between">
                   <label class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                    <i data-lucide="scissors-line-dashed" class="w-3.5 h-3.5 text-rose-400"></i>
-                    İstenmeyen Kısımları Çıkar
+                    <i data-lucide="clapperboard" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    Klip Özellikleri
                   </label>
-                  <span id="cut-segments-count" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 hidden">0 Bölüm</span>
+                  <span id="clip-inspector-badge" class="px-2 py-0.5 text-[10px] font-bold font-mono rounded-full bg-slate-800 text-slate-400 border border-white/5">Seçim Yok</span>
                 </div>
-                <p class="text-[11px] text-slate-400">Videonun ortasındaki duraksamaları veya hatalı yerleri silin. Kalanlar otomatik birleştirilir.</p>
+                <p class="text-[11px] text-slate-400">Zaman çizelgesinde seçtiğiniz klibin hız, ses ve kırpma ayarlarını düzenleyin.</p>
               </div>
 
-              <!-- Add Cut Segment Inputs -->
-              <div class="p-3 rounded-xl bg-slate-900/80 border border-white/5 space-y-3">
+              <!-- Empty state when no clip selected -->
+              <div id="clip-empty-state" class="p-6 rounded-xl bg-slate-900/60 border border-dashed border-slate-700/80 text-center space-y-2">
+                <div class="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
+                  <i data-lucide="mouse-pointer-click" class="w-5 h-5"></i>
+                </div>
+                <p class="text-xs text-slate-200 font-medium">Zaman çizgisinden bir klibe tıklayın</p>
+                <p class="text-[11px] text-slate-400 max-w-xs mx-auto">Klibi bölmek için oynatma imlecini getirip <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono text-[10px] border border-white/10">S</kbd> tuşuna basın.</p>
+              </div>
+
+              <!-- Active Clip Inspector Content -->
+              <div id="clip-active-inspector" class="space-y-4 hidden">
+                <!-- Clip Identity Banner -->
+                <div class="glass-card rounded-xl p-3 border border-white/5 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
+                      <i data-lucide="film" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                      <h4 id="inspector-clip-title" class="text-xs font-bold text-white">Klip 1</h4>
+                      <p id="inspector-clip-timing" class="text-[10px] font-mono text-slate-400">00:00.0 - 00:05.2 (5.2s)</p>
+                    </div>
+                  </div>
+                  <button id="btn-inspector-delete-clip" class="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer" title="Seçili Klibi Sil">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Sil</span>
+                  </button>
+                </div>
+
+                <!-- Speed Control Card -->
+                <div class="glass-card rounded-xl p-3.5 border border-white/5 space-y-2.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-300 font-medium flex items-center gap-1.5">
+                      <i data-lucide="gauge" class="w-3.5 h-3.5 text-cyan-400"></i>
+                      Oynatma Hızı:
+                    </span>
+                    <span id="inspector-speed-badge" class="font-mono text-cyan-300 font-bold text-xs bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">1.0x</span>
+                  </div>
+                  <input type="range" id="slider-clip-speed" min="0.25" max="3.0" step="0.25" value="1.0" class="w-full">
+                  <div class="flex items-center gap-1.5">
+                    <button class="clip-speed-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono flex-1 cursor-pointer" data-speed="0.5">0.5x</button>
+                    <button class="clip-speed-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono flex-1 cursor-pointer" data-speed="1.0">1.0x</button>
+                    <button class="clip-speed-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono flex-1 cursor-pointer" data-speed="1.5">1.5x</button>
+                    <button class="clip-speed-preset-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono flex-1 cursor-pointer" data-speed="2.0">2.0x</button>
+                  </div>
+                </div>
+
+                <!-- Volume Control Card -->
+                <div class="glass-card rounded-xl p-3.5 border border-white/5 space-y-2.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-slate-300 font-medium flex items-center gap-1.5">
+                      <i data-lucide="volume-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+                      Klip Ses Düzeyi:
+                    </span>
+                    <span id="inspector-volume-badge" class="font-mono text-indigo-300 font-bold text-xs bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">%100</span>
+                  </div>
+                  <input type="range" id="slider-clip-volume" min="0" max="200" step="5" value="100" class="w-full">
+                  <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                    <span>%0 (Mute)</span>
+                    <span>%100</span>
+                    <span>%200 (2x Ses)</span>
+                  </div>
+                </div>
+
+                <!-- Precise In/Out Points -->
                 <div class="grid grid-cols-2 gap-2">
-                  <div class="space-y-1">
-                    <div class="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Silinecek Başlangıç:</span>
-                      <button id="btn-cut-start-playhead" class="text-rose-400 hover:underline cursor-pointer">İmleçten Al</button>
+                  <div class="glass-card rounded-xl p-2.5 border border-white/5 space-y-1">
+                    <label class="text-[10px] text-slate-400 font-medium">Başlangıç (In):</label>
+                    <div class="flex items-center gap-1">
+                      <input type="number" id="input-clip-in" step="0.1" min="0" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white outline-none">
+                      <span class="text-[10px] text-slate-500 font-mono">sn</span>
                     </div>
-                    <input type="number" id="input-cut-start" step="0.1" min="0" value="0.0" class="w-full bg-slate-800 border border-slate-700 focus:border-rose-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none">
                   </div>
-
-                  <div class="space-y-1">
-                    <div class="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Silinecek Bitiş:</span>
-                      <button id="btn-cut-end-playhead" class="text-rose-400 hover:underline cursor-pointer">İmleçten Al</button>
+                  <div class="glass-card rounded-xl p-2.5 border border-white/5 space-y-1">
+                    <label class="text-[10px] text-slate-400 font-medium">Bitiş (Out):</label>
+                    <div class="flex items-center gap-1">
+                      <input type="number" id="input-clip-out" step="0.1" min="0" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white outline-none">
+                      <span class="text-[10px] text-slate-500 font-mono">sn</span>
                     </div>
-                    <input type="number" id="input-cut-end" step="0.1" min="0" value="0.0" class="w-full bg-slate-800 border border-slate-700 focus:border-rose-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none">
                   </div>
                 </div>
 
-                <button id="btn-add-cut-segment" class="w-full py-2 px-3 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
-                  <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                  <span>Bu Aralığı Listeye Ekle ve Çıkar</span>
-                </button>
-              </div>
-
-              <!-- List of added cut-out segments -->
-              <div class="space-y-1">
-                <span class="text-[11px] font-semibold text-slate-400 block">Çıkarılacak Bölümler:</span>
-                <div id="cut-segments-list" class="flex flex-wrap gap-2 empty:hidden">
-                  <!-- Dynamically populated via app.js -->
-                </div>
               </div>
             </div>
 
@@ -798,6 +702,211 @@
             </div>
 
           </div>
+
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- CAPCUT NLE MULTI-TRACK TIMELINE STUDIO (FULL WIDTH)               -->
+      <!-- ================================================================= -->
+      <div id="capcut-timeline-studio" class="glass-panel rounded-2xl border border-white/10 shadow-2xl p-4 space-y-3 select-none">
+        
+        <!-- 1. Timeline Action Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-white/5 text-xs">
+          <!-- Left Tool Group: Editing Actions -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <!-- Razor Split Button -->
+            <button id="btn-split-clip" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 hover:border-indigo-400 transition-all flex items-center gap-1.5 font-semibold cursor-pointer active:scale-95 shadow-sm" title="İmleçten İkiye Böl (Kısayol: S)">
+              <i data-lucide="scissors" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>Böl</span>
+              <kbd class="px-1.5 py-0.5 text-[9px] bg-slate-800 rounded border border-white/10 font-mono text-slate-300 font-bold">S</kbd>
+            </button>
+
+            <!-- Delete Selected Clip Button -->
+            <button id="btn-delete-clip" class="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 transition-all flex items-center gap-1.5 font-semibold cursor-pointer active:scale-95 opacity-50 pointer-events-none" title="Seçili Klibi Sil (Kısayol: Delete)">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+              <span>Sil</span>
+              <kbd class="px-1.5 py-0.5 text-[9px] bg-slate-800 rounded border border-white/10 font-mono text-slate-300 font-bold">Del</kbd>
+            </button>
+
+            <!-- Undo Button -->
+            <button id="btn-undo-timeline" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/5 transition-colors cursor-pointer" title="Geri Al (Ctrl+Z)">
+              <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+            </button>
+
+            <div class="h-4 w-[1px] bg-white/10 mx-1"></div>
+
+            <!-- Magnet / Snapping Toggle -->
+            <button id="btn-toggle-snap" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Akıllı Mıknatıs (Snapping) Aç/Kapat">
+              <i data-lucide="magnet" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span id="snap-status-text">Mıknatıs: Açık</span>
+            </button>
+
+            <!-- Ripple Delete Toggle -->
+            <button id="btn-toggle-ripple" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Boşlukları Otomatik Kapat (Ripple)">
+              <i data-lucide="minimize-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span id="ripple-status-text">Boşluğu Kapat: Açık</span>
+            </button>
+
+            <!-- Reset Timeline -->
+            <button id="btn-reset-timeline" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-white/5 transition-colors cursor-pointer" title="Tüm Klipleri Sıfırla & Birleştir">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <!-- Right Tool Group: Zoom, Timecode, Shortcuts -->
+          <div class="flex items-center gap-3">
+            <!-- Zoom Controls -->
+            <div class="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-xl border border-white/5">
+              <button id="btn-zoom-out" class="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Uzaklaştır">
+                <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
+              </button>
+              <input type="range" id="timeline-zoom-slider" min="15" max="150" value="45" class="w-20 sm:w-24 accent-indigo-500 cursor-pointer" title="Zaman Çizelgesi Ölçeği (Zoom)">
+              <button id="btn-zoom-in" class="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Yakınlaştır">
+                <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
+              </button>
+              <button id="btn-zoom-fit" class="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300 hover:text-white border border-white/5 transition-colors cursor-pointer" title="Tüm Klipleri Ekrana Sığdır">
+                Sığdır
+              </button>
+            </div>
+
+            <!-- Duration Badge -->
+            <div class="flex items-center gap-1.5 font-mono text-xs">
+              <span class="text-slate-400 hidden sm:inline">Net Süre:</span>
+              <span id="trim-duration-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                00:00.0
+              </span>
+              <span id="clips-count-badge" class="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                1 Klip
+              </span>
+            </div>
+
+            <!-- Shortcuts Modal Trigger -->
+            <button id="btn-open-shortcuts" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 hover:border-amber-500/40 transition-colors flex items-center gap-1.5 cursor-pointer" title="Klavye Kısayolları Rehberi">
+              <i data-lucide="keyboard" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span class="hidden md:inline">Kısayollar</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. CapCut Multi-Track Canvas Body -->
+        <div id="timeline-studio-body" class="flex border border-white/10 rounded-xl overflow-hidden bg-slate-950/90 relative">
+          
+          <!-- Fixed Left Track Headers Column -->
+          <div class="w-24 sm:w-28 flex-shrink-0 bg-slate-900 border-r border-white/10 z-20 flex flex-col select-none">
+            <!-- Ruler Header Box -->
+            <div class="h-8 border-b border-white/10 flex items-center justify-between px-2 text-[10px] font-mono text-slate-400 bg-slate-900/90">
+              <span class="font-bold flex items-center gap-1">
+                <i data-lucide="clock" class="w-3 h-3 text-indigo-400"></i>
+                ZAMAN
+              </span>
+            </div>
+
+            <!-- V1 Track Header -->
+            <div class="h-16 border-b border-white/5 flex flex-col justify-center px-2 space-y-1 bg-slate-900/60">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-indigo-300 flex items-center gap-1">
+                  <i data-lucide="video" class="w-3 h-3"></i> V1
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Video</span>
+              </div>
+              <div class="flex items-center gap-1 text-slate-400">
+                <button id="btn-track-v1-visible" class="p-1 hover:text-white transition-colors cursor-pointer" title="Kanalı Göster/Gizle">
+                  <i data-lucide="eye" class="w-3 h-3"></i>
+                </button>
+                <button id="btn-track-v1-lock" class="p-1 hover:text-white transition-colors cursor-pointer" title="Kanalı Kilitle">
+                  <i data-lucide="unlock" class="w-3 h-3"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- A1 Track Header -->
+            <div class="h-14 flex flex-col justify-center px-2 space-y-1 bg-slate-900/40">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-cyan-300 flex items-center gap-1">
+                  <i data-lucide="music" class="w-3 h-3"></i> A1
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Ses</span>
+              </div>
+              <div class="flex items-center gap-1 text-slate-400">
+                <button id="btn-track-a1-mute" class="p-1 hover:text-white transition-colors cursor-pointer" title="Kanal Sesini Kapat/Aç">
+                  <i data-lucide="volume-2" class="w-3 h-3"></i>
+                </button>
+                <button id="btn-track-a1-lock" class="p-1 hover:text-white transition-colors cursor-pointer" title="Kanalı Kilitle">
+                  <i data-lucide="unlock" class="w-3 h-3"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Horizontally Scrollable Timeline Container -->
+          <div id="timeline-scroll-viewport" class="flex-1 overflow-x-auto overflow-y-hidden relative custom-scrollbar select-none min-h-[148px]">
+            
+            <!-- Dynamic Width Timeline Canvas (Calculated via zoom * duration) -->
+            <div id="timeline-canvas" class="relative min-w-full h-full">
+              
+              <!-- 1. Ruler Row (Click / Drag to scrub playhead) -->
+              <div id="timeline-ruler" class="h-8 border-b border-white/10 bg-slate-900/80 relative cursor-pointer overflow-hidden" title="İmleci konumlandırmak için cetvele tıklayın veya sürükleyin">
+                <canvas id="ruler-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+              </div>
+
+              <!-- 2. Track Lanes Container -->
+              <div id="timeline-lanes-area" class="relative">
+                
+                <!-- Track V1 Lane -->
+                <div id="track-lane-v1" class="h-16 border-b border-white/5 relative bg-slate-950/40">
+                  <div class="track-lane-grid-bg"></div>
+                  <div id="track-v1-clips" class="absolute inset-0">
+                    <!-- Dynamic Clip Elements rendered via TimelineEngine -->
+                  </div>
+                </div>
+
+                <!-- Track A1 Lane -->
+                <div id="track-lane-a1" class="h-14 relative bg-slate-950/60">
+                  <div class="track-lane-grid-bg"></div>
+                  <div id="track-a1-clips" class="absolute inset-0">
+                    <!-- Dynamic Audio Clip Elements rendered via TimelineEngine -->
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- 3. Red Playhead Vertical Guideline & Head -->
+              <div id="timeline-playhead-line" class="absolute top-0 bottom-0 w-[2px] bg-rose-500 pointer-events-none z-30 transition-[left] duration-75" style="left: 0px;">
+                <!-- Red Playhead Draggable Scrubber Head on Ruler -->
+                <div id="timeline-playhead-head" class="absolute -top-0 -translate-x-1/2 w-4 h-4 bg-rose-500 rounded-sm rotate-45 shadow-lg shadow-rose-500/50 pointer-events-auto cursor-ew-resize flex items-center justify-center">
+                  <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
+                </div>
+              </div>
+
+              <!-- 4. Snapping Guideline (Cyan vertical line when aligned) -->
+              <div id="timeline-snap-guide" class="absolute top-0 bottom-0 w-[1px] bg-cyan-400 shadow-[0_0_8px_#22d3ee] pointer-events-none z-25 hidden" style="left: 0px;"></div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Timeline Helper Footer -->
+        <div class="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
+          <div class="flex items-center gap-3">
+            <span class="flex items-center gap-1">
+              <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-white/10 text-[10px] font-mono font-bold text-slate-200">S</kbd>
+              <span>İmleçten Böl</span>
+            </span>
+            <span class="flex items-center gap-1">
+              <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-white/10 text-[10px] font-mono font-bold text-slate-200">Del</kbd>
+              <span>Seçili Klibi Sil</span>
+            </span>
+            <span class="flex items-center gap-1">
+              <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-white/10 text-[10px] font-mono font-bold text-slate-200">Ctrl+Z</kbd>
+              <span>Geri Al</span>
+            </span>
+          </div>
+          <div id="timeline-selection-hint" class="font-mono text-[10px] text-slate-400">
+            Seçili Klip: Yok
+          </div>
+        </div>
 
       </div>
 

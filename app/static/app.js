@@ -17,17 +17,20 @@
     duration: 0, // Video duration in seconds
     originalSize: 0, // In bytes
 
-    // Timeline Trim
+    // CapCut NLE Multi-Track Timeline
+    tracks: [
+      { id: 'v1', type: 'video', name: 'V1', visible: true, locked: false, clips: [] },
+      { id: 'a1', type: 'audio', name: 'A1', muted: false, locked: false, clips: [] },
+    ],
+    selectedClipId: null,
+    selectedTrackId: 'v1',
+    timelineZoom: 45, // Pixels per second
+    isSnappingEnabled: true,
+    isRippleEnabled: true,
+    timelineHistory: [], // Undo snapshots
     startTime: 0,
     endTime: 0,
     isPlayingTrim: false,
-    cutOutSegments: [], // [{ start: float, end: float }]
-
-    // NLE Multi-Clip Timeline
-    clips: [], // [{ id: string, start: number, end: number, selected: boolean }]
-    selectedClipId: null,
-    clipHistory: [], // undo stack
-    lastPlayrate: 1.0,
 
     // Transformation Settings
     aspectRatio: 'original',
@@ -101,38 +104,41 @@
     btnPlayerFs: document.getElementById('btn-player-fs'),
     aspectGuideOverlay: document.getElementById('aspect-guide-overlay'),
 
-    // Timeline & NLE Elements
+    // CapCut NLE Timeline Studio Elements
+    capcutTimelineStudio: document.getElementById('capcut-timeline-studio'),
+    timelineScrollViewport: document.getElementById('timeline-scroll-viewport'),
+    timelineCanvas: document.getElementById('timeline-canvas'),
+    timelineRuler: document.getElementById('timeline-ruler'),
+    rulerCanvas: document.getElementById('ruler-canvas'),
+    timelinePlayheadLine: document.getElementById('timeline-playhead-line'),
+    timelinePlayheadHead: document.getElementById('timeline-playhead-head'),
+    timelineSnapGuide: document.getElementById('timeline-snap-guide'),
+    trackV1Clips: document.getElementById('track-v1-clips'),
+    trackA1Clips: document.getElementById('track-a1-clips'),
     trimDurationBadge: document.getElementById('trim-duration-badge'),
     clipsCountBadge: document.getElementById('clips-count-badge'),
-    timelineTrack: document.getElementById('timeline-track'),
-    timelineActiveRegion: document.getElementById('timeline-active-region'),
-    timelinePlayhead: document.getElementById('timeline-playhead'),
-    handleStart: document.getElementById('handle-start'),
-    handleEnd: document.getElementById('handle-end'),
-    inputStartSeconds: document.getElementById('input-start-seconds'),
-    inputEndSeconds: document.getElementById('input-end-seconds'),
-    btnSetStartPlayhead: document.getElementById('btn-set-start-playhead'),
-    btnSetEndPlayhead: document.getElementById('btn-set-end-playhead'),
-    btnPreviewTrim: document.getElementById('btn-preview-trim'),
-    btnResetTrim: document.getElementById('btn-reset-trim'),
-    trimSavingsPill: document.getElementById('trim-savings-pill'),
-    inputCutStart: document.getElementById('input-cut-start'),
-    inputCutEnd: document.getElementById('input-cut-end'),
-    btnCutStartPlayhead: document.getElementById('btn-cut-start-playhead'),
-    btnCutEndPlayhead: document.getElementById('btn-cut-end-playhead'),
-    btnAddCutSegment: document.getElementById('btn-add-cut-segment'),
-    cutSegmentsList: document.getElementById('cut-segments-list'),
-    cutSegmentsCount: document.getElementById('cut-segments-count'),
-    timelineCutMarkers: document.getElementById('timeline-cut-markers'),
-
-    // NLE Clips Track & Action Toolbar
-    timelineClipsTrack: document.getElementById('timeline-clips-track'),
     timelineSelectionHint: document.getElementById('timeline-selection-hint'),
+
+    // Timeline Toolbar Controls
     btnSplitClip: document.getElementById('btn-split-clip'),
     btnDeleteClip: document.getElementById('btn-delete-clip'),
     btnUndoTimeline: document.getElementById('btn-undo-timeline'),
     btnResetTimeline: document.getElementById('btn-reset-timeline'),
+    btnToggleSnap: document.getElementById('btn-toggle-snap'),
+    snapStatusText: document.getElementById('snap-status-text'),
+    btnToggleRipple: document.getElementById('btn-toggle-ripple'),
+    rippleStatusText: document.getElementById('ripple-status-text'),
+    btnZoomIn: document.getElementById('btn-zoom-in'),
+    btnZoomOut: document.getElementById('btn-zoom-out'),
+    btnZoomFit: document.getElementById('btn-zoom-fit'),
+    timelineZoomSlider: document.getElementById('timeline-zoom-slider'),
     btnOpenShortcuts: document.getElementById('btn-open-shortcuts'),
+
+    // Track Controls
+    btnTrackV1Visible: document.getElementById('btn-track-v1-visible'),
+    btnTrackV1Lock: document.getElementById('btn-track-v1-lock'),
+    btnTrackA1Mute: document.getElementById('btn-track-a1-mute'),
+    btnTrackA1Lock: document.getElementById('btn-track-a1-lock'),
 
     // Shortcuts Modal
     shortcutsModal: document.getElementById('shortcuts-modal'),
@@ -148,12 +154,26 @@
     // Stüdyo Inspector Tabs
     tabNavFormat: document.getElementById('tab-nav-format'),
     tabNavCompress: document.getElementById('tab-nav-compress'),
-    tabNavCut: document.getElementById('tab-nav-cut'),
+    tabNavClip: document.getElementById('tab-nav-clip'),
     tabNavAudio: document.getElementById('tab-nav-audio'),
     tabPanelFormat: document.getElementById('tab-panel-format'),
     tabPanelCompress: document.getElementById('tab-panel-compress'),
-    tabPanelCut: document.getElementById('tab-panel-cut'),
+    tabPanelClip: document.getElementById('tab-panel-clip'),
     tabPanelAudio: document.getElementById('tab-panel-audio'),
+
+    // Clip Inspector Elements
+    clipInspectorBadge: document.getElementById('clip-inspector-badge'),
+    clipEmptyState: document.getElementById('clip-empty-state'),
+    clipActiveInspector: document.getElementById('clip-active-inspector'),
+    inspectorClipTitle: document.getElementById('inspector-clip-title'),
+    inspectorClipTiming: document.getElementById('inspector-clip-timing'),
+    btnInspectorDeleteClip: document.getElementById('btn-inspector-delete-clip'),
+    sliderClipSpeed: document.getElementById('slider-clip-speed'),
+    inspectorSpeedBadge: document.getElementById('inspector-speed-badge'),
+    sliderClipVolume: document.getElementById('slider-clip-volume'),
+    inspectorVolumeBadge: document.getElementById('inspector-volume-badge'),
+    inputClipIn: document.getElementById('input-clip-in'),
+    inputClipOut: document.getElementById('input-clip-out'),
 
     // Aspect & Fit
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
@@ -528,34 +548,26 @@
     dom.sliderTargetMb.value = state.targetSizeMb;
     dom.sliderTargetMb.max = Math.max(50, Math.ceil(origMb * 1.2));
 
-    // Reset Trimmer Controls
-    dom.inputStartSeconds.value = '0.0';
-    dom.inputEndSeconds.value = state.duration.toFixed(1);
-    dom.inputStartSeconds.max = state.duration.toString();
-    dom.inputEndSeconds.max = state.duration.toString();
-
-    // Reset Cut-Out Segments & Initialize NLE Clips
-    state.cutOutSegments = [];
-    if (dom.inputCutStart) dom.inputCutStart.value = '0.0';
-    if (dom.inputCutEnd) dom.inputCutEnd.value = Math.min(state.duration, 3.0).toFixed(1);
-    renderCutSegments();
-
+    // Initialize CapCut Multi-Track Timeline
     clipCounter = 1;
-    state.clips = [{
-      id: 'clip-1',
-      start: 0.0,
-      end: Math.round(state.duration * 100) / 100,
-      selected: false,
-    }];
+    const v1 = getV1Track();
+    if (v1) {
+      v1.clips = [{
+        id: 'clip-1',
+        in_point: 0.0,
+        out_point: Math.round(state.duration * 100) / 100,
+        timeline_start: 0.0,
+        speed: 1.0,
+        volume: 1.0,
+      }];
+    }
     state.selectedClipId = null;
-    state.clipHistory = [];
+    state.timelineHistory = [];
     if (dom.btnDeleteClip) {
       dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
     }
-    renderClipsTrack();
-
-    updateTimelineHandles();
-    updateTrimBadge();
+    renderAllTracks();
+    updateTimelineDurationBadge();
     switchView('editor');
     showToast(`Video yüklendi: ${state.filename}`, 'success');
   }
@@ -567,9 +579,13 @@
     // Play / Pause Toggle
     const togglePlay = () => {
       if (dom.videoPlayer.paused) {
-        // If current playhead is past end trim, seek to start trim
-        if (dom.videoPlayer.currentTime >= state.endTime || dom.videoPlayer.currentTime < state.startTime) {
-          dom.videoPlayer.currentTime = state.startTime;
+        const v1 = getV1Track();
+        if (v1 && v1.clips.length > 0) {
+          const lastClip = v1.clips[v1.clips.length - 1];
+          const firstClip = v1.clips[0];
+          if (dom.videoPlayer.currentTime >= lastClip.out_point || dom.videoPlayer.currentTime < firstClip.in_point) {
+            dom.videoPlayer.currentTime = firstClip.in_point;
+          }
         }
         dom.videoPlayer.play();
       } else {
@@ -597,35 +613,28 @@
     dom.videoPlayer.addEventListener('timeupdate', () => {
       const cur = dom.videoPlayer.currentTime;
       dom.playerCurrentTime.textContent = formatTime(cur);
+      updatePlayheadPosition();
 
-      if (state.duration > 0) {
-        const percent = (cur / state.duration) * 100;
-        dom.timelinePlayhead.style.left = `${Math.min(100, Math.max(0, percent))}%`;
-      }
+      // Real-time Gap Skipping across deleted timeline regions
+      if (!dom.videoPlayer.paused) {
+        const v1 = getV1Track();
+        if (v1 && v1.clips.length > 0) {
+          const lastClip = v1.clips[v1.clips.length - 1];
+          if (cur >= lastClip.out_point) {
+            dom.videoPlayer.pause();
+            state.isPlayingTrim = false;
+            return;
+          }
 
-      // Real-time NLE gap skipping across deleted regions
-      if (!dom.videoPlayer.paused && state.clips && state.clips.length > 0) {
-        const lastClip = state.clips[state.clips.length - 1];
-        if (cur >= lastClip.end) {
-          dom.videoPlayer.pause();
-          state.isPlayingTrim = false;
-          return;
-        }
-
-        for (let i = 0; i < state.clips.length - 1; i++) {
-          const currentClip = state.clips[i];
-          const nextClip = state.clips[i + 1];
-          if (cur >= currentClip.end && cur < nextClip.start) {
-            dom.videoPlayer.currentTime = nextClip.start;
-            break;
+          for (let i = 0; i < v1.clips.length - 1; i++) {
+            const currentClip = v1.clips[i];
+            const nextClip = v1.clips[i + 1];
+            if (cur >= currentClip.out_point && cur < nextClip.in_point) {
+              dom.videoPlayer.currentTime = nextClip.in_point;
+              break;
+            }
           }
         }
-      }
-
-      // If in trim preview mode and we reached end trim, pause
-      if (state.isPlayingTrim && cur >= state.endTime) {
-        dom.videoPlayer.pause();
-        state.isPlayingTrim = false;
       }
     });
 
@@ -653,248 +662,692 @@
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // NLE Multi-Clip Timeline & Ripple Delete
-  // ---------------------------------------------------------------------------
+  // ===========================================================================
+  // CapCut NLE Multi-Track Timeline Engine
+  // ===========================================================================
   let clipCounter = 1;
 
-  function pushClipHistory() {
-    if (!state.clips) return;
-    state.clipHistory.push({
-      clips: state.clips.map((c) => ({ ...c })),
+  function timeToPx(seconds) {
+    return Math.max(0, seconds * state.timelineZoom);
+  }
+
+  function pxToTime(px) {
+    return Math.max(0, px / state.timelineZoom);
+  }
+
+  function getV1Track() {
+    return state.tracks.find((t) => t.id === 'v1');
+  }
+
+  function getA1Track() {
+    return state.tracks.find((t) => t.id === 'a1');
+  }
+
+  function getSelectedClip() {
+    if (!state.selectedClipId) return null;
+    for (const track of state.tracks) {
+      const c = track.clips.find((clip) => clip.id === state.selectedClipId);
+      if (c) return { clip: c, track };
+    }
+    return null;
+  }
+
+  function pushTimelineHistory() {
+    state.timelineHistory.push({
+      tracks: JSON.parse(JSON.stringify(state.tracks)),
       selectedClipId: state.selectedClipId,
     });
-    if (state.clipHistory.length > 25) {
-      state.clipHistory.shift();
+    if (state.timelineHistory.length > 30) {
+      state.timelineHistory.shift();
     }
   }
 
   function undoTimeline() {
-    if (!state.clipHistory || state.clipHistory.length === 0) {
+    if (!state.timelineHistory || state.timelineHistory.length === 0) {
       showToast('Geri alınacak bir kurgu işlemi bulunmuyor.', 'info');
       return;
     }
-    const previous = state.clipHistory.pop();
-    state.clips = previous.clips;
+    const previous = state.timelineHistory.pop();
+    state.tracks = previous.tracks;
     state.selectedClipId = previous.selectedClipId;
-    syncClipsToEngine();
-    renderClipsTrack();
-    showToast('Son kurgu işlemi geri alındı (Undo) ↩️', 'info');
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    updateClipInspector();
+    showToast('Son işlem geri alındı (Undo) ↩️', 'info');
   }
 
-  function splitClipAtPlayhead() {
-    if (state.duration <= 0 || !state.clips || state.clips.length === 0) return;
-    const cur = dom.videoPlayer.currentTime;
+  function snapTime(rawTime, thresholdSeconds = 0.25) {
+    if (!state.isSnappingEnabled) return rawTime;
 
-    // Find the clip containing current playhead
-    const targetIdx = state.clips.findIndex(
-      (c) => cur > c.start + 0.15 && cur < c.end - 0.15
-    );
-
-    if (targetIdx === -1) {
-      showToast('İmleç bir klibin sınırında veya silinmiş bir aralıkta. Bölme yapılamaz.', 'info');
-      return;
+    const snapPoints = [0, dom.videoPlayer.currentTime];
+    const v1 = getV1Track();
+    if (v1) {
+      v1.clips.forEach((c) => {
+        snapPoints.push(c.timeline_start);
+        snapPoints.push(c.timeline_start + c.duration);
+      });
     }
 
-    pushClipHistory();
-    const targetClip = state.clips[targetIdx];
-    const curRounded = Math.round(cur * 100) / 100;
-
-    const clipA = {
-      id: targetClip.id,
-      start: targetClip.start,
-      end: curRounded,
-      selected: false,
-    };
-    const clipB = {
-      id: `clip-${++clipCounter}`,
-      start: curRounded,
-      end: targetClip.end,
-      selected: true,
-    };
-
-    state.clips.splice(targetIdx, 1, clipA, clipB);
-    state.selectedClipId = clipB.id;
-
-    syncClipsToEngine();
-    renderClipsTrack();
-    showToast(`Klip ${formatTime(curRounded)} noktasından bölündü (Split) ✂️`, 'success');
-  }
-
-  function selectClip(clipId) {
-    state.selectedClipId = clipId;
-    state.clips.forEach((c) => {
-      c.selected = c.id === clipId;
-    });
-
-    if (dom.btnDeleteClip) {
-      if (clipId && state.clips.length > 1) {
-        dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
-      } else {
-        dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+    let closest = rawTime;
+    let minDiff = thresholdSeconds;
+    for (const pt of snapPoints) {
+      const diff = Math.abs(rawTime - pt);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = pt;
       }
     }
-
-    const sel = state.clips.find((c) => c.id === clipId);
-    if (dom.timelineSelectionHint) {
-      if (sel) {
-        const dur = (sel.end - sel.start).toFixed(1);
-        dom.timelineSelectionHint.textContent = `Seçili: Klip (${formatTime(sel.start)} - ${formatTime(sel.end)} • ${dur}s)`;
-      } else {
-        dom.timelineSelectionHint.textContent = 'Seçili klip: Yok';
-      }
-    }
-
-    renderClipsTrack();
+    return closest;
   }
 
-  function deleteSelectedClip() {
-    if (!state.selectedClipId) {
-      showToast('Lütfen önce zaman çizgisinden silmek istediğiniz klibe tıklayın.', 'info');
-      return;
-    }
-
-    if (state.clips.length <= 1) {
-      showToast('Videonun tamamını silemezsiniz! Kurguyu sıfırlamak için Sıfırla butonunu kullanın.', 'error');
-      return;
-    }
-
-    pushClipHistory();
-    const delIdx = state.clips.findIndex((c) => c.id === state.selectedClipId);
-    if (delIdx !== -1) {
-      const removed = state.clips.splice(delIdx, 1)[0];
-      state.selectedClipId = null;
-      if (dom.btnDeleteClip) {
-        dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
-      }
-      syncClipsToEngine();
-      renderClipsTrack();
-      showToast(`Klip silindi (${formatTime(removed.start)} - ${formatTime(removed.end)}). Boşluk otomatik kapatıldı! 🗑️`, 'success');
-    }
+  function calculateNetDuration() {
+    const v1 = getV1Track();
+    if (!v1 || v1.clips.length === 0) return state.duration;
+    return v1.clips.reduce((acc, c) => acc + c.duration, 0);
   }
 
-  function resetTimelineClips() {
-    if (state.duration <= 0) return;
-    pushClipHistory();
-    state.clips = [{
-      id: `clip-${++clipCounter}`,
-      start: 0.0,
-      end: Math.round(state.duration * 100) / 100,
-      selected: false,
-    }];
-    state.selectedClipId = null;
-    if (dom.btnDeleteClip) {
-      dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+  function updateTimelineDurationBadge() {
+    const netDur = calculateNetDuration();
+    if (dom.trimDurationBadge) {
+      dom.trimDurationBadge.textContent = formatTime(netDur);
     }
-    syncClipsToEngine();
-    renderClipsTrack();
-    showToast('Kurgu sıfırlandı, video tek parça yapıldı.', 'info');
-  }
-
-  function syncClipsToEngine() {
-    if (!state.clips || state.clips.length === 0) return;
-
-    state.clips.sort((a, b) => a.start - b.start);
-
-    // Overall trim bounds
-    state.startTime = state.clips[0].start;
-    state.endTime = state.clips[state.clips.length - 1].end;
-
-    dom.inputStartSeconds.value = state.startTime.toFixed(1);
-    dom.inputEndSeconds.value = state.endTime.toFixed(1);
-
-    // Gaps between consecutive clips become cutOutSegments
-    const gaps = [];
-    for (let i = 0; i < state.clips.length - 1; i++) {
-      const endCurr = state.clips[i].end;
-      const startNext = state.clips[i + 1].start;
-      if (startNext - endCurr > 0.05) {
-        gaps.push({
-          start: Math.round(endCurr * 100) / 100,
-          end: Math.round(startNext * 100) / 100,
-        });
-      }
-    }
-    state.cutOutSegments = gaps;
-
+    const v1 = getV1Track();
+    const clipCount = v1 ? v1.clips.length : 0;
     if (dom.clipsCountBadge) {
-      dom.clipsCountBadge.textContent = `${state.clips.length} Klip`;
+      dom.clipsCountBadge.textContent = `${clipCount} Klip`;
     }
-
-    renderCutSegments();
-    renderTimelineCutMarkers();
-    updateTimelineHandles();
-    updateTrimBadge();
     updateExportSummary();
     updateSavingsEstimate();
   }
 
-  function renderClipsTrack() {
-    if (!dom.timelineClipsTrack) return;
-    dom.timelineClipsTrack.innerHTML = '';
+  // --- Ruler Rendering ---
+  function renderTimelineRuler() {
+    if (!dom.rulerCanvas || !dom.timelineRuler) return;
+    const canvas = dom.rulerCanvas;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    if (!state.clips || state.clips.length === 0) return;
+    const netDur = Math.max(state.duration, calculateNetDuration(), 10);
+    const viewportWidth = dom.timelineScrollViewport ? dom.timelineScrollViewport.clientWidth : 800;
+    const totalWidth = Math.max(viewportWidth, timeToPx(netDur) + 200);
 
-    let prevEnd = state.clips[0].start;
+    canvas.width = totalWidth;
+    canvas.height = 32;
+    if (dom.timelineCanvas) {
+      dom.timelineCanvas.style.width = `${totalWidth}px`;
+    }
 
-    state.clips.forEach((clip, idx) => {
-      // If there's an omitted gap before this clip
-      if (clip.start - prevEnd > 0.05) {
-        const gapDur = (clip.start - prevEnd).toFixed(1);
-        const gapEl = document.createElement('div');
-        gapEl.className = 'timeline-gap-block';
-        gapEl.innerHTML = `<span>Silindi (-${gapDur}s)</span>`;
-        gapEl.title = `Silinen Aralık: ${formatTime(prevEnd)} - ${formatTime(clip.start)}`;
-        dom.timelineClipsTrack.appendChild(gapEl);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'middle';
+
+    let stepSec = 1;
+    if (state.timelineZoom < 25) stepSec = 5;
+    else if (state.timelineZoom < 50) stepSec = 2;
+    else if (state.timelineZoom > 100) stepSec = 0.5;
+
+    for (let t = 0; t <= netDur + 10; t += 0.5) {
+      const x = timeToPx(t);
+      const isMajor = Math.abs(t % (stepSec * 2)) < 0.01;
+      const isMedium = Math.abs(t % stepSec) < 0.01;
+
+      ctx.beginPath();
+      if (isMajor) {
+        ctx.moveTo(x, 16);
+        ctx.lineTo(x, 32);
+        ctx.stroke();
+        ctx.fillText(formatTime(t).split('.')[0], x + 4, 12);
+      } else if (isMedium) {
+        ctx.moveTo(x, 22);
+        ctx.lineTo(x, 32);
+        ctx.stroke();
+      } else {
+        ctx.moveTo(x, 26);
+        ctx.lineTo(x, 32);
+        ctx.stroke();
       }
+    }
+  }
 
-      // Clip element
+  // --- Tracks & Clips Rendering ---
+  function renderAllTracks() {
+    renderTimelineRuler();
+    renderTrackV1();
+    renderTrackA1();
+    updatePlayheadPosition();
+    updateClipInspector();
+  }
+
+  function renderTrackV1() {
+    if (!dom.trackV1Clips) return;
+    dom.trackV1Clips.innerHTML = '';
+
+    const v1 = getV1Track();
+    if (!v1) return;
+
+    v1.clips.forEach((clip, index) => {
       const clipEl = document.createElement('div');
       const isSelected = clip.id === state.selectedClipId;
-      clipEl.className = `timeline-clip-block ${isSelected ? 'selected' : ''}`;
+      clipEl.className = `timeline-clip-card ${isSelected ? 'selected' : ''}`;
       clipEl.dataset.clipId = clip.id;
+      clipEl.style.left = `${timeToPx(clip.timeline_start)}px`;
+      clipEl.style.width = `${Math.max(28, timeToPx(clip.duration))}px`;
 
-      const dur = (clip.end - clip.start).toFixed(1);
+      const durStr = clip.duration.toFixed(1);
+      const speedBadge = clip.speed !== 1.0 ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${clip.speed}x</span>` : '';
+
       clipEl.innerHTML = `
-        <div class="flex items-center gap-1.5 min-w-0 pointer-events-none">
-          <i data-lucide="film" class="w-3.5 h-3.5 ${isSelected ? 'text-indigo-300' : 'text-slate-400'} flex-shrink-0"></i>
-          <span class="text-xs font-semibold ${isSelected ? 'text-white' : 'text-slate-200'} truncate">Klip ${idx + 1}</span>
+        <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Klibin başını kırp"></div>
+        <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none">
+          <i data-lucide="film" class="w-3.5 h-3.5 text-indigo-300 flex-shrink-0"></i>
+          <span class="text-xs font-semibold text-white truncate">Klip ${index + 1}</span>
+          ${speedBadge}
         </div>
-        <div class="flex items-center gap-1 text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-400'} flex-shrink-0 pointer-events-none">
-          <span>${dur}s</span>
+        <div class="flex items-center gap-1 text-[10px] font-mono text-indigo-200 pointer-events-none flex-shrink-0">
+          <span>${durStr}s</span>
         </div>
+        <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Klibin sonunu kırp"></div>
       `;
 
-      clipEl.addEventListener('click', (e) => {
-        e.stopPropagation();
-        selectClip(clip.id);
+      clipEl.addEventListener('pointerdown', (e) => {
+        const action = e.target.dataset.action;
+        if (action === 'trim-left') {
+          initClipEdgeTrimming(clip, 'left', e);
+        } else if (action === 'trim-right') {
+          initClipEdgeTrimming(clip, 'right', e);
+        } else {
+          selectClip(clip.id);
+          initClipDragging(clip, e);
+        }
       });
 
-      clipEl.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        dom.videoPlayer.currentTime = clip.start;
-      });
-
-      dom.timelineClipsTrack.appendChild(clipEl);
-      prevEnd = clip.end;
+      dom.trackV1Clips.appendChild(clipEl);
     });
 
     refreshIcons();
   }
 
-  function initNLEClipsTrack() {
-    if (dom.btnSplitClip) {
-      dom.btnSplitClip.addEventListener('click', splitClipAtPlayhead);
+  function renderTrackA1() {
+    if (!dom.trackA1Clips) return;
+    dom.trackA1Clips.innerHTML = '';
+
+    const v1 = getV1Track();
+    if (!v1) return;
+
+    v1.clips.forEach((clip, index) => {
+      const audioEl = document.createElement('div');
+      const isSelected = clip.id === state.selectedClipId;
+      audioEl.className = `timeline-audio-clip-card ${isSelected ? 'selected' : ''}`;
+      audioEl.style.left = `${timeToPx(clip.timeline_start)}px`;
+      audioEl.style.width = `${Math.max(28, timeToPx(clip.duration))}px`;
+
+      const volStr = clip.volume !== 1.0 ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono">%${Math.round(clip.volume * 100)}</span>` : '';
+
+      audioEl.innerHTML = `
+        <div class="flex items-center gap-1.5 min-w-0 flex-1 pointer-events-none">
+          <i data-lucide="volume-2" class="w-3 h-3 text-cyan-400 flex-shrink-0"></i>
+          <span class="text-[11px] font-medium text-cyan-200 truncate">Ses ${index + 1}</span>
+          ${volStr}
+        </div>
+      `;
+
+      audioEl.addEventListener('click', () => {
+        selectClip(clip.id);
+      });
+
+      dom.trackA1Clips.appendChild(audioEl);
+    });
+
+    refreshIcons();
+  }
+
+  // --- Edge Trimming Drag (Left & Right Handles) ---
+  function initClipEdgeTrimming(clip, edge, downEvent) {
+    downEvent.stopPropagation();
+    downEvent.preventDefault();
+    pushTimelineHistory();
+
+    const startX = downEvent.clientX;
+    const origIn = clip.in_point;
+    const origOut = clip.out_point;
+    const origTimelineStart = clip.timeline_start;
+    const speed = clip.speed || 1.0;
+
+    const onPointerMove = (e) => {
+      const dx = e.clientX - startX;
+      const dSeconds = dx / state.timelineZoom;
+
+      if (edge === 'left') {
+        const deltaSource = dSeconds * speed;
+        let newIn = Math.max(0, Math.min(origOut - 0.2, origIn + deltaSource));
+        newIn = snapTime(newIn, 0.15);
+        clip.in_point = Math.round(newIn * 100) / 100;
+        clip.timeline_start = Math.max(0, origTimelineStart + (clip.in_point - origIn) / speed);
+        dom.videoPlayer.currentTime = clip.in_point;
+      } else if (edge === 'right') {
+        const deltaSource = dSeconds * speed;
+        let newOut = Math.min(state.duration, Math.max(origIn + 0.2, origOut + deltaSource));
+        newOut = snapTime(newOut, 0.15);
+        clip.out_point = Math.round(newOut * 100) / 100;
+        dom.videoPlayer.currentTime = clip.out_point;
+      }
+
+      renderAllTracks();
+      updateTimelineDurationBadge();
+      updateClipInspector();
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      if (state.isRippleEnabled) {
+        rippleAlignClips();
+      }
+      renderAllTracks();
+      updateTimelineDurationBadge();
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  }
+
+  // --- Clip Position Dragging on Track ---
+  function initClipDragging(clip, downEvent) {
+    downEvent.preventDefault();
+    const startX = downEvent.clientX;
+    const origTimelineStart = clip.timeline_start;
+    let hasMoved = false;
+
+    const onPointerMove = (e) => {
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 3 && !hasMoved) {
+        hasMoved = true;
+        pushTimelineHistory();
+      }
+      if (!hasMoved) return;
+
+      const dSeconds = dx / state.timelineZoom;
+      let newStart = Math.max(0, origTimelineStart + dSeconds);
+      newStart = snapTime(newStart, 0.2);
+      clip.timeline_start = Math.round(newStart * 100) / 100;
+
+      if (dom.timelineSnapGuide) {
+        dom.timelineSnapGuide.classList.remove('hidden');
+        dom.timelineSnapGuide.style.left = `${timeToPx(clip.timeline_start)}px`;
+      }
+
+      renderTrackV1();
+      renderTrackA1();
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      if (dom.timelineSnapGuide) {
+        dom.timelineSnapGuide.classList.add('hidden');
+      }
+      if (hasMoved) {
+        const v1 = getV1Track();
+        if (v1) v1.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+        if (state.isRippleEnabled) {
+          rippleAlignClips();
+        }
+        renderAllTracks();
+        updateTimelineDurationBadge();
+      }
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  }
+
+  function rippleAlignClips() {
+    const v1 = getV1Track();
+    if (!v1 || v1.clips.length === 0) return;
+    v1.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+    let cur = 0;
+    v1.clips.forEach((c) => {
+      c.timeline_start = Math.round(cur * 100) / 100;
+      cur += c.duration;
+    });
+  }
+
+  // --- Razor Split Tool ---
+  function splitClipAtPlayhead() {
+    if (state.duration <= 0) return;
+    const cur = dom.videoPlayer.currentTime;
+    const v1 = getV1Track();
+    if (!v1 || v1.clips.length === 0) return;
+
+    const targetIdx = v1.clips.findIndex(
+      (c) => cur > c.in_point + 0.15 && cur < c.out_point - 0.15
+    );
+
+    if (targetIdx === -1) {
+      showToast('İmleç bir klibin sınırında veya boş bir aralıkta. Bölme yapılamaz.', 'info');
+      return;
     }
+
+    pushTimelineHistory();
+    const targetClip = v1.clips[targetIdx];
+    const curRounded = Math.round(cur * 100) / 100;
+    const splitOffset = (curRounded - targetClip.in_point) / (targetClip.speed || 1.0);
+
+    const clipA = {
+      ...targetClip,
+      id: `clip-${++clipCounter}`,
+      out_point: curRounded,
+    };
+    const clipB = {
+      ...targetClip,
+      id: `clip-${++clipCounter}`,
+      in_point: curRounded,
+      timeline_start: Math.round((targetClip.timeline_start + splitOffset) * 100) / 100,
+    };
+
+    v1.clips.splice(targetIdx, 1, clipA, clipB);
+    if (state.isRippleEnabled) rippleAlignClips();
+
+    selectClip(clipB.id);
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    showToast(`Klip ${formatTime(curRounded)} noktasından bölündü (Split) ✂️`, 'success');
+  }
+
+  function selectClip(clipId) {
+    state.selectedClipId = clipId;
     if (dom.btnDeleteClip) {
-      dom.btnDeleteClip.addEventListener('click', deleteSelectedClip);
+      dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
     }
-    if (dom.btnUndoTimeline) {
-      dom.btnUndoTimeline.addEventListener('click', undoTimeline);
+    renderTrackV1();
+    renderTrackA1();
+    updateClipInspector();
+    activateInspectorTab('clip');
+  }
+
+  function deleteSelectedClip() {
+    if (!state.selectedClipId) {
+      showToast('Lütfen silmek istediğiniz klibe tıklayın.', 'info');
+      return;
     }
-    if (dom.btnResetTimeline) {
-      dom.btnResetTimeline.addEventListener('click', resetTimelineClips);
+    const v1 = getV1Track();
+    if (!v1 || v1.clips.length <= 1) {
+      showToast('Videonun tamamını silemezsiniz! Sıfırlamak için Sıfırla butonunu kullanın.', 'error');
+      return;
     }
+
+    pushTimelineHistory();
+    const delIdx = v1.clips.findIndex((c) => c.id === state.selectedClipId);
+    if (delIdx !== -1) {
+      const removed = v1.clips.splice(delIdx, 1)[0];
+      state.selectedClipId = null;
+      if (dom.btnDeleteClip) {
+        dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+      }
+      if (state.isRippleEnabled) rippleAlignClips();
+
+      renderAllTracks();
+      updateTimelineDurationBadge();
+      updateClipInspector();
+      showToast(`Klip silindi (${formatTime(removed.in_point)} - ${formatTime(removed.out_point)}) 🗑️`, 'success');
+    }
+  }
+
+  function resetTimeline() {
+    if (state.duration <= 0) return;
+    pushTimelineHistory();
+    clipCounter = 1;
+    const v1 = getV1Track();
+    if (v1) {
+      v1.clips = [{
+        id: `clip-${clipCounter}`,
+        in_point: 0.0,
+        out_point: Math.round(state.duration * 100) / 100,
+        timeline_start: 0.0,
+        speed: 1.0,
+        volume: 1.0,
+      }];
+    }
+    state.selectedClipId = null;
+    if (dom.btnDeleteClip) {
+      dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+    }
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    updateClipInspector();
+    showToast('Zaman çizgisi sıfırlandı, video tek parça yapıldı.', 'info');
+  }
+
+  // --- Clip Inspector Synchronizer ---
+  function updateClipInspector() {
+    const sel = getSelectedClip();
+    if (!sel) {
+      if (dom.clipEmptyState) dom.clipEmptyState.classList.remove('hidden');
+      if (dom.clipActiveInspector) dom.clipActiveInspector.classList.add('hidden');
+      if (dom.clipInspectorBadge) {
+        dom.clipInspectorBadge.textContent = 'Seçim Yok';
+        dom.clipInspectorBadge.className = 'px-2 py-0.5 text-[10px] font-bold font-mono rounded-full bg-slate-800 text-slate-400 border border-white/5';
+      }
+      if (dom.timelineSelectionHint) dom.timelineSelectionHint.textContent = 'Seçili Klip: Yok';
+      return;
+    }
+
+    const { clip } = sel;
+    if (dom.clipEmptyState) dom.clipEmptyState.classList.add('hidden');
+    if (dom.clipActiveInspector) dom.clipActiveInspector.classList.remove('hidden');
+    if (dom.clipInspectorBadge) {
+      dom.clipInspectorBadge.textContent = `${clip.id.toUpperCase()}`;
+      dom.clipInspectorBadge.className = 'px-2 py-0.5 text-[10px] font-bold font-mono rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+    }
+
+    const v1 = getV1Track();
+    const clipIdx = v1 ? v1.clips.findIndex((c) => c.id === clip.id) + 1 : 1;
+    if (dom.inspectorClipTitle) dom.inspectorClipTitle.textContent = `Klip ${clipIdx}`;
+    if (dom.inspectorClipTiming) {
+      dom.inspectorClipTiming.textContent = `${formatTime(clip.in_point)} - ${formatTime(clip.out_point)} • ${clip.duration.toFixed(1)}s`;
+    }
+    if (dom.timelineSelectionHint) {
+      dom.timelineSelectionHint.textContent = `Seçili: Klip ${clipIdx} (${formatTime(clip.in_point)} - ${formatTime(clip.out_point)})`;
+    }
+
+    if (dom.sliderClipSpeed) dom.sliderClipSpeed.value = clip.speed || 1.0;
+    if (dom.inspectorSpeedBadge) dom.inspectorSpeedBadge.textContent = `${clip.speed || 1.0}x`;
+    if (dom.sliderClipVolume) dom.sliderClipVolume.value = Math.round((clip.volume || 1.0) * 100);
+    if (dom.inspectorVolumeBadge) dom.inspectorVolumeBadge.textContent = `%${Math.round((clip.volume || 1.0) * 100)}`;
+    if (dom.inputClipIn) dom.inputClipIn.value = clip.in_point.toFixed(1);
+    if (dom.inputClipOut) dom.inputClipOut.value = clip.out_point.toFixed(1);
+  }
+
+  function initClipInspectorListeners() {
+    if (dom.btnInspectorDeleteClip) {
+      dom.btnInspectorDeleteClip.addEventListener('click', deleteSelectedClip);
+    }
+
+    if (dom.sliderClipSpeed) {
+      dom.sliderClipSpeed.addEventListener('input', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.speed = parseFloat(e.target.value);
+        if (dom.inspectorSpeedBadge) dom.inspectorSpeedBadge.textContent = `${sel.clip.speed}x`;
+        if (state.isRippleEnabled) rippleAlignClips();
+        renderAllTracks();
+        updateTimelineDurationBadge();
+      });
+    }
+
+    document.querySelectorAll('.clip-speed-preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.speed = parseFloat(btn.dataset.speed);
+        if (dom.sliderClipSpeed) dom.sliderClipSpeed.value = sel.clip.speed;
+        if (dom.inspectorSpeedBadge) dom.inspectorSpeedBadge.textContent = `${sel.clip.speed}x`;
+        if (state.isRippleEnabled) rippleAlignClips();
+        renderAllTracks();
+        updateTimelineDurationBadge();
+      });
+    });
+
+    if (dom.sliderClipVolume) {
+      dom.sliderClipVolume.addEventListener('input', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.volume = parseInt(e.target.value, 10) / 100;
+        if (dom.inspectorVolumeBadge) dom.inspectorVolumeBadge.textContent = `%${e.target.value}`;
+        renderTrackA1();
+      });
+    }
+
+    if (dom.inputClipIn) {
+      dom.inputClipIn.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        const val = parseFloat(e.target.value);
+        if (!isNaN(val) && val >= 0 && val < sel.clip.out_point) {
+          sel.clip.in_point = val;
+          if (state.isRippleEnabled) rippleAlignClips();
+          renderAllTracks();
+          updateTimelineDurationBadge();
+          updateClipInspector();
+        }
+      });
+    }
+
+    if (dom.inputClipOut) {
+      dom.inputClipOut.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        const val = parseFloat(e.target.value);
+        if (!isNaN(val) && val > sel.clip.in_point && val <= state.duration) {
+          sel.clip.out_point = val;
+          if (state.isRippleEnabled) rippleAlignClips();
+          renderAllTracks();
+          updateTimelineDurationBadge();
+          updateClipInspector();
+        }
+      });
+    }
+  }
+
+  // --- Playhead & Ruler Scrubber ---
+  function updatePlayheadPosition() {
+    if (!dom.timelinePlayheadLine) return;
+    const cur = dom.videoPlayer.currentTime;
+    dom.timelinePlayheadLine.style.left = `${timeToPx(cur)}px`;
+  }
+
+  function initTimelineRulerScrubber() {
+    if (!dom.timelineRuler) return;
+
+    let isScrubbing = false;
+
+    const seekAtEvent = (e) => {
+      const rect = dom.timelineRuler.getBoundingClientRect();
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const scrollLeft = dom.timelineScrollViewport ? dom.timelineScrollViewport.scrollLeft : 0;
+      const offsetX = clientX - rect.left + scrollLeft;
+      const targetTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
+      dom.videoPlayer.currentTime = targetTime;
+      updatePlayheadPosition();
+    };
+
+    dom.timelineRuler.addEventListener('pointerdown', (e) => {
+      isScrubbing = true;
+      seekAtEvent(e);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
+
+    const onPointerMove = (e) => {
+      if (!isScrubbing) return;
+      seekAtEvent(e);
+    };
+
+    const onPointerUp = () => {
+      isScrubbing = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+  }
+
+  // --- Zoom Controls ---
+  function initZoomControls() {
+    const applyZoom = (newZoom) => {
+      state.timelineZoom = Math.max(15, Math.min(180, newZoom));
+      if (dom.timelineZoomSlider) dom.timelineZoomSlider.value = state.timelineZoom;
+      renderAllTracks();
+    };
+
+    if (dom.timelineZoomSlider) {
+      dom.timelineZoomSlider.addEventListener('input', (e) => {
+        applyZoom(parseFloat(e.target.value));
+      });
+    }
+
+    if (dom.btnZoomIn) {
+      dom.btnZoomIn.addEventListener('click', () => {
+        applyZoom(state.timelineZoom * 1.25);
+      });
+    }
+
+    if (dom.btnZoomOut) {
+      dom.btnZoomOut.addEventListener('click', () => {
+        applyZoom(state.timelineZoom * 0.8);
+      });
+    }
+
+    if (dom.btnZoomFit) {
+      dom.btnZoomFit.addEventListener('click', () => {
+        const viewportWidth = dom.timelineScrollViewport ? dom.timelineScrollViewport.clientWidth - 40 : 600;
+        const netDur = Math.max(1, calculateNetDuration());
+        applyZoom(viewportWidth / netDur);
+      });
+    }
+  }
+
+  // --- Toolbar Handlers ---
+  function initCapCutTimelineStudio() {
+    if (dom.btnSplitClip) dom.btnSplitClip.addEventListener('click', splitClipAtPlayhead);
+    if (dom.btnDeleteClip) dom.btnDeleteClip.addEventListener('click', deleteSelectedClip);
+    if (dom.btnUndoTimeline) dom.btnUndoTimeline.addEventListener('click', undoTimeline);
+    if (dom.btnResetTimeline) dom.btnResetTimeline.addEventListener('click', resetTimeline);
+
+    if (dom.btnToggleSnap) {
+      dom.btnToggleSnap.addEventListener('click', () => {
+        state.isSnappingEnabled = !state.isSnappingEnabled;
+        dom.btnToggleSnap.classList.toggle('bg-emerald-500/20', state.isSnappingEnabled);
+        dom.btnToggleSnap.classList.toggle('text-emerald-300', state.isSnappingEnabled);
+        dom.btnToggleSnap.classList.toggle('border-emerald-500/30', state.isSnappingEnabled);
+        dom.btnToggleSnap.classList.toggle('opacity-60', !state.isSnappingEnabled);
+        if (dom.snapStatusText) {
+          dom.snapStatusText.textContent = `Mıknatıs: ${state.isSnappingEnabled ? 'Açık' : 'Kapalı'}`;
+        }
+      });
+    }
+
+    if (dom.btnToggleRipple) {
+      dom.btnToggleRipple.addEventListener('click', () => {
+        state.isRippleEnabled = !state.isRippleEnabled;
+        dom.btnToggleRipple.classList.toggle('bg-indigo-500/20', state.isRippleEnabled);
+        dom.btnToggleRipple.classList.toggle('text-indigo-300', state.isRippleEnabled);
+        dom.btnToggleRipple.classList.toggle('border-indigo-500/30', state.isRippleEnabled);
+        dom.btnToggleRipple.classList.toggle('opacity-60', !state.isRippleEnabled);
+        if (dom.rippleStatusText) {
+          dom.rippleStatusText.textContent = `Boşluğu Kapat: ${state.isRippleEnabled ? 'Açık' : 'Kapalı'}`;
+        }
+        if (state.isRippleEnabled) {
+          rippleAlignClips();
+          renderAllTracks();
+        }
+      });
+    }
+
+    initZoomControls();
+    initTimelineRulerScrubber();
+    initClipInspectorListeners();
   }
 
   // ---------------------------------------------------------------------------
@@ -1081,295 +1534,41 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Interactive Dual-Handle Timeline Trimmer
+  // Stüdyo Inspector Sekmeleri (Tabs)
   // ---------------------------------------------------------------------------
-  function initTimelineTrimmer() {
-    let isDragging = null; // 'start' | 'end' | null
+  function activateInspectorTab(tabKey) {
+    const tabs = [
+      { key: 'format', nav: dom.tabNavFormat, panel: dom.tabPanelFormat },
+      { key: 'compress', nav: dom.tabNavCompress, panel: dom.tabPanelCompress },
+      { key: 'clip', nav: dom.tabNavClip, panel: dom.tabPanelClip },
+      { key: 'audio', nav: dom.tabNavAudio, panel: dom.tabPanelAudio },
+    ];
 
-    const onPointerDown = (handle) => (e) => {
-      e.preventDefault();
-      isDragging = handle;
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-
-    dom.handleStart.addEventListener('pointerdown', onPointerDown('start'));
-    dom.handleEnd.addEventListener('pointerdown', onPointerDown('end'));
-
-    const onPointerMove = (e) => {
-      if (!isDragging || state.duration <= 0) return;
-      const rect = dom.timelineTrack.getBoundingClientRect();
-      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const targetTime = ratio * state.duration;
-
-      if (isDragging === 'start') {
-        state.startTime = Math.max(0, Math.min(targetTime, state.endTime - 0.2));
-        dom.inputStartSeconds.value = state.startTime.toFixed(1);
-        dom.videoPlayer.currentTime = state.startTime;
-      } else if (isDragging === 'end') {
-        state.endTime = Math.min(state.duration, Math.max(targetTime, state.startTime + 0.2));
-        dom.inputEndSeconds.value = state.endTime.toFixed(1);
-        dom.videoPlayer.currentTime = state.endTime;
-      }
-
-      updateTimelineHandles();
-      updateTrimBadge();
-    };
-
-    const onPointerUp = () => {
-      isDragging = null;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    // Clicking anywhere on timeline track seeks video
-    dom.timelineTrack.addEventListener('click', (e) => {
-      if (e.target.closest('.timeline-handle')) return;
-      const rect = dom.timelineTrack.getBoundingClientRect();
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const seekTime = ratio * state.duration;
-      dom.videoPlayer.currentTime = seekTime;
-    });
-
-    // Timecode Inputs Sync
-    dom.inputStartSeconds.addEventListener('input', () => {
-      let val = parseFloat(dom.inputStartSeconds.value);
-      if (isNaN(val)) val = 0;
-      state.startTime = Math.max(0, Math.min(val, state.endTime - 0.1));
-      updateTimelineHandles();
-      updateTrimBadge();
-    });
-
-    dom.inputEndSeconds.addEventListener('input', () => {
-      let val = parseFloat(dom.inputEndSeconds.value);
-      if (isNaN(val)) val = state.duration;
-      state.endTime = Math.min(state.duration, Math.max(val, state.startTime + 0.1));
-      updateTimelineHandles();
-      updateTrimBadge();
-    });
-
-    // Set markers at playhead
-    dom.btnSetStartPlayhead.addEventListener('click', () => {
-      const cur = dom.videoPlayer.currentTime;
-      if (cur < state.endTime) {
-        state.startTime = Math.max(0, cur);
-        dom.inputStartSeconds.value = state.startTime.toFixed(1);
-        updateTimelineHandles();
-        updateTrimBadge();
-        showToast(`Start marker set to ${formatTime(state.startTime)}`, 'info');
+    tabs.forEach(({ key, nav, panel }) => {
+      if (!nav || !panel) return;
+      if (key === tabKey) {
+        nav.classList.add('active');
+        panel.classList.remove('hidden');
       } else {
-        showToast('Start marker must be before End marker.', 'error');
+        nav.classList.remove('active');
+        panel.classList.add('hidden');
       }
     });
-
-    dom.btnSetEndPlayhead.addEventListener('click', () => {
-      const cur = dom.videoPlayer.currentTime;
-      if (cur > state.startTime) {
-        state.endTime = Math.min(state.duration, cur);
-        dom.inputEndSeconds.value = state.endTime.toFixed(1);
-        updateTimelineHandles();
-        updateTrimBadge();
-        showToast(`End marker set to ${formatTime(state.endTime)}`, 'info');
-      } else {
-        showToast('End marker must be after Start marker.', 'error');
-      }
-    });
-
-    // Play Selection Cut
-    dom.btnPreviewTrim.addEventListener('click', () => {
-      dom.videoPlayer.currentTime = state.startTime;
-      state.isPlayingTrim = true;
-      dom.videoPlayer.play();
-    });
-
-    // Cut Out Segment Playhead Buttons
-    if (dom.btnCutStartPlayhead) {
-      dom.btnCutStartPlayhead.addEventListener('click', () => {
-        dom.inputCutStart.value = dom.videoPlayer.currentTime.toFixed(1);
-      });
-    }
-    if (dom.btnCutEndPlayhead) {
-      dom.btnCutEndPlayhead.addEventListener('click', () => {
-        dom.inputCutEnd.value = dom.videoPlayer.currentTime.toFixed(1);
-      });
-    }
-
-    // Add Cut Out Segment
-    if (dom.btnAddCutSegment) {
-      dom.btnAddCutSegment.addEventListener('click', () => {
-        const start = parseFloat(dom.inputCutStart.value);
-        const end = parseFloat(dom.inputCutEnd.value);
-        addCutSegment(start, end);
-      });
-    }
-
-    // Reset Trim to Full Range
-    dom.btnResetTrim.addEventListener('click', () => {
-      state.startTime = 0;
-      state.endTime = state.duration;
-      dom.inputStartSeconds.value = '0.0';
-      dom.inputEndSeconds.value = state.duration.toFixed(1);
-      state.cutOutSegments = [];
-      renderCutSegments();
-      updateTimelineHandles();
-      updateTrimBadge();
-      showToast('Kırpma ve çıkarılan bölümler sıfırlandı.', 'info');
-    });
-  }
-
-  function getNetDuration() {
-    const rawTrimDur = Math.max(0, state.endTime - state.startTime);
-    if (!state.cutOutSegments || state.cutOutSegments.length === 0) {
-      return rawTrimDur;
-    }
-    let totalCutOut = 0;
-    state.cutOutSegments.forEach((seg) => {
-      const s = Math.max(state.startTime, seg.start);
-      const e = Math.min(state.endTime, seg.end);
-      if (s < e) {
-        totalCutOut += e - s;
-      }
-    });
-    return Math.max(0, rawTrimDur - totalCutOut);
-  }
-
-  function renderCutSegments() {
-    if (!dom.cutSegmentsList) return;
-    dom.cutSegmentsList.innerHTML = '';
-    const count = state.cutOutSegments ? state.cutOutSegments.length : 0;
-
-    if (dom.cutSegmentsCount) {
-      if (count > 0) {
-        dom.cutSegmentsCount.textContent = `${count} Bölüm Çıkarılacak`;
-        dom.cutSegmentsCount.classList.remove('hidden');
-      } else {
-        dom.cutSegmentsCount.classList.add('hidden');
-      }
-    }
-
-    if (state.cutOutSegments) {
-      state.cutOutSegments.forEach((seg, idx) => {
-        const dur = (seg.end - seg.start).toFixed(1);
-        const badge = document.createElement('div');
-        badge.className =
-          'cut-badge flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-mono';
-        badge.innerHTML = `
-          <i data-lucide="scissors" class="w-3.5 h-3.5 text-rose-400"></i>
-          <span>${formatTime(seg.start)} - ${formatTime(seg.end)}</span>
-          <span class="text-[10px] text-rose-400/80">(-${dur}s)</span>
-          <button type="button" class="ml-1 text-slate-400 hover:text-white transition-colors" title="Bu aralığı sil">
-            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-          </button>
-        `;
-        badge.querySelector('button').addEventListener('click', (e) => {
-          e.stopPropagation();
-          removeCutSegment(idx);
-        });
-        dom.cutSegmentsList.appendChild(badge);
-      });
-    }
-
-    renderTimelineCutMarkers();
-    updateTrimBadge();
     refreshIcons();
   }
 
-  function renderTimelineCutMarkers() {
-    if (!dom.timelineCutMarkers || state.duration <= 0) return;
-    dom.timelineCutMarkers.innerHTML = '';
-
-    if (state.cutOutSegments) {
-      state.cutOutSegments.forEach((seg) => {
-        const leftPct = (seg.start / state.duration) * 100;
-        const widthPct = ((seg.end - seg.start) / state.duration) * 100;
-
-        const marker = document.createElement('div');
-        marker.className = 'timeline-cut-marker';
-        marker.style.left = `${Math.max(0, leftPct)}%`;
-        marker.style.width = `${Math.min(100 - leftPct, widthPct)}%`;
-        marker.title = `Çıkarılacak: ${formatTime(seg.start)} - ${formatTime(seg.end)}`;
-        dom.timelineCutMarkers.appendChild(marker);
-      });
-    }
-  }
-
-  function addCutSegment(start, end) {
-    if (isNaN(start) || isNaN(end) || start >= end) {
-      showToast('Geçersiz aralık: Başlangıç bitişten küçük olmalıdır.', 'error');
-      return;
-    }
-    if (start < 0 || end > state.duration + 0.1) {
-      showToast(`Aralık 0 ile ${state.duration.toFixed(1)} sn arasında olmalıdır.`, 'error');
-      return;
-    }
-
-    state.cutOutSegments.push({
-      start: parseFloat(start.toFixed(2)),
-      end: parseFloat(end.toFixed(2)),
-    });
-    state.cutOutSegments.sort((a, b) => a.start - b.start);
-    renderCutSegments();
-    showToast(`Aralık (${formatTime(start)} - ${formatTime(end)}) çıkarılacaklara eklendi.`, 'success');
-  }
-
-  function removeCutSegment(idx) {
-    state.cutOutSegments.splice(idx, 1);
-    renderCutSegments();
-  }
-
-  function updateTimelineHandles() {
-    if (state.duration <= 0) return;
-    const startPct = (state.startTime / state.duration) * 100;
-    const endPct = (state.endTime / state.duration) * 100;
-
-    dom.handleStart.style.left = `${startPct}%`;
-    dom.handleEnd.style.left = `${endPct}%`;
-    dom.timelineActiveRegion.style.left = `${startPct}%`;
-    dom.timelineActiveRegion.style.width = `${Math.max(0, endPct - startPct)}%`;
-  }
-
-  function updateTrimBadge() {
-    const netDur = getNetDuration();
-    dom.trimDurationBadge.textContent = `${formatTime(netDur)} / ${formatTime(state.duration)}`;
-
-    const ratio = state.duration > 0 ? (netDur / state.duration) * 100 : 100;
-    if (ratio < 99) {
-      const savedPct = Math.round(100 - ratio);
-      const cutCount = state.cutOutSegments ? state.cutOutSegments.length : 0;
-      const countNote = cutCount > 0 ? ` • ${cutCount} bölüm silindi` : '';
-      dom.trimSavingsPill.textContent = `Toplam %${savedPct} kısaltıldı${countNote}`;
-      dom.trimSavingsPill.className = 'text-[11px] text-emerald-400 font-mono font-medium';
-    } else {
-      dom.trimSavingsPill.textContent = 'Videonun tamamı korunuyor';
-      dom.trimSavingsPill.className = 'text-[11px] text-slate-400 font-mono';
-    }
-
-    updateExportSummary();
-    updateSavingsEstimate();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Stüdyo Inspector Sekmeleri (Tabs)
-  // ---------------------------------------------------------------------------
   function initInspectorTabs() {
     const tabs = [
-      { nav: dom.tabNavFormat, panel: dom.tabPanelFormat },
-      { nav: dom.tabNavCompress, panel: dom.tabPanelCompress },
-      { nav: dom.tabNavCut, panel: dom.tabPanelCut },
-      { nav: dom.tabNavAudio, panel: dom.tabPanelAudio },
+      { key: 'format', nav: dom.tabNavFormat },
+      { key: 'compress', nav: dom.tabNavCompress },
+      { key: 'clip', nav: dom.tabNavClip },
+      { key: 'audio', nav: dom.tabNavAudio },
     ];
 
-    tabs.forEach(({ nav, panel }) => {
-      if (!nav || !panel) return;
+    tabs.forEach(({ key, nav }) => {
+      if (!nav) return;
       nav.addEventListener('click', () => {
-        tabs.forEach((t) => {
-          if (t.nav) t.nav.classList.remove('active');
-          if (t.panel) t.panel.classList.add('hidden');
-        });
-        nav.classList.add('active');
-        panel.classList.remove('hidden');
-        refreshIcons();
+        activateInspectorTab(key);
       });
     });
   }
@@ -1560,7 +1759,7 @@
   function updateSavingsEstimate() {
     if (state.originalSize <= 0) return;
     const origMb = state.originalSize / (1024 * 1024);
-    const cutDur = Math.max(0.1, state.endTime - state.startTime);
+    const cutDur = Math.max(0.1, calculateNetDuration());
     const durationRatio = state.duration > 0 ? cutDur / state.duration : 1;
     const effectiveOrigMb = origMb * durationRatio;
 
@@ -1605,9 +1804,10 @@
       parts.push(`CRF ${state.crf} (${codecName})`);
     }
 
-    // Multi-segment cuts
-    if (state.cutOutSegments && state.cutOutSegments.length > 0) {
-      parts.push(`${state.cutOutSegments.length} Bölüm Silinecek`);
+    // Timeline Clips
+    const v1Track = getV1Track();
+    if (v1Track && v1Track.clips && v1Track.clips.length > 0) {
+      parts.push(`${v1Track.clips.length} Klip (${formatTime(calculateNetDuration())})`);
     }
 
     if (state.removeAudio) {
@@ -1644,20 +1844,23 @@
       fast_seek: true,
     };
 
-    // Trimming
-    if (state.startTime > 0) {
-      config.start_time = Math.round(state.startTime * 1000) / 1000;
-    }
-    if (state.endTime < state.duration) {
-      config.end_time = Math.round(state.endTime * 1000) / 1000;
-    }
-
-    // Multi-segment Cut-Outs (remove parts)
-    if (state.cutOutSegments && state.cutOutSegments.length > 0) {
-      config.cut_out_segments = state.cutOutSegments.map((s) => ({
-        start: Math.round(s.start * 1000) / 1000,
-        end: Math.round(s.end * 1000) / 1000,
-      }));
+    // Multi-track Timeline Tracks & Clips
+    const v1 = getV1Track();
+    if (v1 && v1.clips && v1.clips.length > 0) {
+      config.timeline_tracks = [
+        {
+          id: 'v1',
+          type: 'video',
+          clips: v1.clips.map((c) => ({
+            id: c.id,
+            in_point: Math.round(c.in_point * 1000) / 1000,
+            out_point: Math.round(c.out_point * 1000) / 1000,
+            timeline_start: Math.round(c.timeline_start * 1000) / 1000,
+            speed: c.speed || 1.0,
+            volume: c.volume !== undefined ? c.volume : 1.0,
+          })),
+        },
+      ];
     }
 
     // Aspect Ratio
@@ -2125,8 +2328,7 @@
   function init() {
     initUploadHandlers();
     initPlayerControls();
-    initTimelineTrimmer();
-    initNLEClipsTrack();
+    initCapCutTimelineStudio();
     initKeyboardShortcuts();
     initInspectorTabs();
     initAspectRatioControls();

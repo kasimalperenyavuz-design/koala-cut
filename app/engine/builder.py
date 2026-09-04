@@ -30,14 +30,45 @@ VideoCodec = Literal[
 
 class CutSegment(BaseModel):
     """Time range to remove/cut out from video."""
-    start: float = Field(ge=0.0, description="Start timestamp in seconds")
-    end: float = Field(gt=0.0, description="End timestamp in seconds")
+    start: float = Field(ge=0.0, description="Start time in seconds")
+    end: float = Field(gt=0.0, description="End time in seconds")
 
     @model_validator(mode="after")
     def validate_segment(self) -> "CutSegment":
         if self.start >= self.end:
             raise ValueError(f"Segment start ({self.start}) must be strictly less than end ({self.end})")
         return self
+
+
+class TimelineClip(BaseModel):
+    """Clip positioned on an NLE timeline track."""
+    id: str = Field(description="Unique clip identifier")
+    in_point: float = Field(default=0.0, ge=0.0, description="Start offset in source media (seconds)")
+    out_point: float = Field(gt=0.0, description="End offset in source media (seconds)")
+    timeline_start: float = Field(default=0.0, ge=0.0, description="Placement timestamp on timeline track (seconds)")
+    speed: float = Field(default=1.0, gt=0.0, description="Playback speed multiplier (e.g. 0.5x, 1.0x, 2.0x)")
+    volume: float = Field(default=1.0, ge=0.0, description="Audio volume multiplier (1.0 = 100%)")
+    file_id: Optional[str] = Field(default=None, description="Source file ID if multi-file project")
+
+    @model_validator(mode="after")
+    def validate_clip(self) -> "TimelineClip":
+        if self.in_point >= self.out_point:
+            raise ValueError(f"in_point ({self.in_point}) must be strictly less than out_point ({self.out_point})")
+        return self
+
+    @property
+    def duration(self) -> float:
+        """Effective playback duration on the timeline taking speed into account."""
+        return max(0.0, (self.out_point - self.in_point) / self.speed)
+
+
+class TimelineTrack(BaseModel):
+    """A lane/track on the timeline (e.g. V1, V2, A1)."""
+    id: str = Field(description="Track ID, e.g. 'v1', 'v2', 'a1'")
+    type: Literal["video", "audio", "overlay", "text"] = Field(default="video", description="Track type")
+    clips: list[TimelineClip] = Field(default_factory=list, description="Clips in sequential or positioned order")
+    muted: bool = Field(default=False, description="Mute audio of this track")
+    locked: bool = Field(default=False, description="Lock track against editing")
 
 
 class VideoFilterConfig(BaseModel):
@@ -68,6 +99,10 @@ class VideoFilterConfig(BaseModel):
     remove_audio: bool = Field(default=False, description="Strip audio stream entirely")
     fast_seek: bool = Field(default=True, description="Place trim flags before input for fast seek")
     hwaccel: str = Field(default="auto", description="Hardware acceleration mode ('auto', 'nvenc', 'qsv', 'amf', 'cpu')")
+    timeline_tracks: Optional[list[TimelineTrack]] = Field(
+        default=None,
+        description="Multi-track timeline configuration (CapCut NLE engine)",
+    )
 
     @model_validator(mode="after")
     def validate_timings(self) -> "VideoFilterConfig":
@@ -355,6 +390,16 @@ class FFmpegCommandBuilder:
         input_file = os.path.normpath(input_path)
         output_file = os.path.normpath(output_path)
 
+        # Check if timeline_tracks is specified (CapCut NLE mode)
+        v_track = None
+        if config.timeline_tracks:
+            for t in config.timeline_tracks:
+                if t.type == "video" and t.clips:
+                    v_track = t
+                    break
+
+        has_timeline = v_track is not None and len(v_track.clips) > 0
+
         keep_intervals = self.calculate_keep_intervals(
             source_duration=source_duration,
             start_time=config.start_time,
@@ -364,13 +409,71 @@ class FFmpegCommandBuilder:
 
         has_multi_cuts = len(config.cut_out_segments) > 0 and len(keep_intervals) > 1
 
-        if has_multi_cuts and config.mode == "copy":
+        if (has_timeline or has_multi_cuts) and config.mode == "copy":
             raise ValueError(
-                "Cannot use 'copy' mode when cutting out segments. "
+                "Cannot use 'copy' mode when cutting out segments or assembling timeline clips. "
                 "Re-encoding is required for seamless splicing."
             )
 
-        if has_multi_cuts:
+        if has_timeline:
+            assert v_track is not None
+            n_clips = len(v_track.clips)
+            complex_filters: list[str] = []
+            v_inputs: list[str] = []
+            a_inputs: list[str] = []
+
+            for i, clip in enumerate(v_track.clips):
+                v_tag = f"v{i}"
+                speed = clip.speed if clip.speed > 0 else 1.0
+                pts_speed = f"setpts={1.0 / speed:.4f}*(PTS-STARTPTS)" if speed != 1.0 else "setpts=PTS-STARTPTS"
+                v_trim = f"[0:v]trim=start={clip.in_point:.3f}:end={clip.out_point:.3f},{pts_speed}[{v_tag}]"
+                complex_filters.append(v_trim)
+                v_inputs.append(f"[{v_tag}]")
+
+                if not config.remove_audio and not v_track.muted:
+                    a_tag = f"a{i}"
+                    atrim_filter = f"[0:a]atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f},asetpts=PTS-STARTPTS"
+                    if speed != 1.0:
+                        atrim_filter += f",atempo={speed:.4f}"
+                    if clip.volume != 1.0:
+                        atrim_filter += f",volume={clip.volume:.2f}"
+                    atrim_filter += f"[{a_tag}]"
+                    complex_filters.append(atrim_filter)
+                    a_inputs.append(f"[{a_tag}]")
+
+            has_audio = (not config.remove_audio) and (not v_track.muted) and (len(a_inputs) == n_clips)
+
+            if n_clips > 1:
+                if has_audio:
+                    concat_parts = "".join(f"{v_inputs[i]}{a_inputs[i]}" for i in range(n_clips))
+                    complex_filters.append(f"{concat_parts}concat=n={n_clips}:v=1:a=1[v_concat][a_concat]")
+                    current_v = "[v_concat]"
+                    current_a: Optional[str] = "[a_concat]"
+                else:
+                    concat_parts = "".join(v_inputs)
+                    complex_filters.append(f"{concat_parts}concat=n={n_clips}:v=1:a=0[v_concat]")
+                    current_v = "[v_concat]"
+                    current_a = None
+            else:
+                current_v = v_inputs[0]
+                current_a = a_inputs[0] if has_audio else None
+
+            # Apply additional transformations (aspect ratio, scale, crop, pad, fps)
+            vf_list = self.build_video_filters(config)
+            if vf_list:
+                vf_str = ",".join(vf_list)
+                complex_filters.append(f"{current_v}{vf_str}[v_out]")
+                current_v = "[v_out]"
+
+            cmd: list[str] = [
+                get_ffmpeg_path(), "-y",
+                "-i", input_file,
+                "-filter_complex", ";".join(complex_filters),
+                "-map", current_v,
+            ]
+            if current_a is not None:
+                cmd.extend(["-map", current_a])
+        elif has_multi_cuts:
             # Multi-segment trim + concat filtergraph
             n_segs = len(keep_intervals)
             complex_filters: list[str] = []
@@ -459,8 +562,10 @@ class FFmpegCommandBuilder:
                 preset=config.preset,
             ))
         elif config.mode == "target_size":
-            assert config.target_size_mb is not None
-            if has_multi_cuts:
+            if has_timeline:
+                assert v_track is not None
+                effective_duration = sum(c.duration for c in v_track.clips)
+            elif has_multi_cuts:
                 effective_duration = sum((e - s) for s, e in keep_intervals if e is not None)
             else:
                 start = config.start_time or 0.0
