@@ -36,7 +36,7 @@ def test_update_status_endpoint(client):
     data = res.json()
     assert "current_version" in data
     assert "repo" in data
-    assert data["current_version"] == "1.3.0"
+    assert data["current_version"] == "1.3.1"
 
 
 def test_update_config_endpoint(client):
@@ -85,3 +85,15 @@ def test_install_update_validation(client):
     """Verify install endpoint handles empty payload."""
     res = client.post("/api/updates/install", json={"download_url": ""})
     assert res.status_code == 400
+
+
+def test_update_progress_endpoint(client):
+    """Verify update progress endpoint returns valid progress schema."""
+    res = client.get("/api/updates/progress")
+    assert res.status_code == 200
+    data = res.json()
+    assert "status" in data
+    assert "percent" in data
+    assert "downloaded_bytes" in data
+    assert "total_bytes" in data
+

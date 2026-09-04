@@ -2,7 +2,7 @@
 ; Zero-dependency standalone Windows installer
 
 #define MyAppName "koala-cut"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.3.1"
 #define MyAppPublisher "koala-cut Studio"
 #define MyAppURL "http://127.0.0.1:8000"
 #define MyAppExeName "koala-cut.exe"
@@ -28,13 +28,13 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog commandline
 UninstallDisplayIcon={app}\{#MyAppExeName}
 DisableProgramGroupPage=yes
-VersionInfoVersion=1.3.0.0
+VersionInfoVersion=1.3.1.0
 VersionInfoCompany=koala-cut Studio
 VersionInfoDescription=koala-cut Video Studio Kurulum Sihirbazı
-VersionInfoTextVersion=1.3.0
+VersionInfoTextVersion=1.3.1
 VersionInfoCopyright=Copyright (C) 2026 koala-cut Studio
 VersionInfoProductName=koala-cut
-VersionInfoProductVersion=1.3.0.0
+VersionInfoProductVersion=1.3.1.0
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"

@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Callable, Optional
 import urllib.request
@@ -23,7 +24,7 @@ from app.services.storage import get_storage_dirs
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.3.0"
+CURRENT_VERSION = "1.3.1"
 DEFAULT_GITHUB_REPO = "kasimalperenyavuz-design/koala-cut"
 
 
@@ -42,13 +43,28 @@ def is_newer_version(latest_str: str, current_str: str = CURRENT_VERSION) -> boo
     return parse_version(latest_str) > parse_version(current_str)
 
 
+def is_installed_via_setup() -> bool:
+    """Check if the current app was installed using the Inno Setup installer."""
+    if not getattr(sys, "frozen", False):
+        return False
+    exe_dir = Path(sys.executable).resolve().parent
+    return (exe_dir / "unins000.exe").is_file()
+
+
 class UpdateManager:
-    """Manages update discovery, configuration, and self-update execution."""
+    """Manages update discovery, configuration, progress tracking, and self-update execution."""
 
     def __init__(self) -> None:
         self.current_version = CURRENT_VERSION
         self.config_file = self._resolve_config_path()
         self.repo = self._load_repo()
+        self.progress: dict[str, Any] = {
+            "status": "idle",  # "idle" | "downloading" | "installing" | "completed" | "error"
+            "percent": 0,
+            "downloaded_bytes": 0,
+            "total_bytes": 0,
+            "error": None,
+        }
 
     def _resolve_config_path(self) -> Path:
         """Resolve path to user updater configuration."""
@@ -72,6 +88,10 @@ class UpdateManager:
         self.repo = repo_name.strip()
         data = {"repo": self.repo}
         self.config_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def get_progress(self) -> dict[str, Any]:
+        """Return the current download and installation progress."""
+        return dict(self.progress)
 
     async def check_for_updates(self) -> dict[str, Any]:
         """Query GitHub Releases API for the latest release."""
@@ -109,22 +129,21 @@ class UpdateManager:
         latest_tag = release_data.get("tag_name", "").lstrip("v")
         has_update = is_newer_version(latest_tag, self.current_version)
 
-        # Find suitable binary asset (koala-cut.exe or koala-cut-setup.exe)
-        download_url = None
-        asset_name = None
-        asset_size = 0
-
+        setup_asset = None
+        portable_asset = None
         for asset in release_data.get("assets", []):
             name = asset.get("name", "").lower()
-            if name == "koala-cut.exe":
-                download_url = asset.get("browser_download_url")
-                asset_name = asset.get("name")
-                asset_size = asset.get("size", 0)
-                break
-            elif "setup" in name and name.endswith(".exe"):
-                download_url = asset.get("browser_download_url")
-                asset_name = asset.get("name")
-                asset_size = asset.get("size", 0)
+            if "setup" in name and name.endswith(".exe"):
+                setup_asset = asset
+            elif name == "koala-cut.exe":
+                portable_asset = asset
+
+        prefer_setup = is_installed_via_setup()
+        chosen = (setup_asset if prefer_setup and setup_asset else portable_asset) or setup_asset or portable_asset
+
+        download_url = chosen.get("browser_download_url") if chosen else None
+        asset_name = chosen.get("name") if chosen else None
+        asset_size = chosen.get("size", 0) if chosen else 0
 
         return {
             "update_available": has_update,
@@ -135,6 +154,7 @@ class UpdateManager:
             "download_url": download_url,
             "asset_name": asset_name,
             "asset_size": asset_size,
+            "is_setup": prefer_setup and bool(setup_asset),
             "published_at": release_data.get("published_at"),
             "repo": self.repo,
         }
@@ -144,63 +164,114 @@ class UpdateManager:
         download_url: str,
         progress_callback: Optional[Callable[[int], None]] = None,
     ) -> bool:
-        """Download new binary and schedule Windows self-replacement restart."""
+        """Download new binary and schedule Windows self-replacement or installer restart."""
+        self.progress = {
+            "status": "downloading",
+            "percent": 0,
+            "downloaded_bytes": 0,
+            "total_bytes": 0,
+            "error": None,
+        }
+
         if not getattr(sys, "frozen", False):
-            # Running from source, simulate success
+            # Running from source (development mode), simulate download & success
             logger.info("Running from source, update simulation completed.")
+            for p in [25, 50, 75, 100]:
+                await asyncio.sleep(0.3)
+                self.progress["percent"] = p
+                if progress_callback:
+                    progress_callback(p)
+            self.progress["status"] = "completed"
             return True
 
         current_exe = Path(sys.executable).resolve()
         exe_dir = current_exe.parent
-        new_exe = exe_dir / "koala-cut.new.exe"
-        script_path = exe_dir / "update_and_restart.bat"
+        is_setup = "setup" in download_url.lower()
 
-        # 1. Download updated binary
+        if is_setup:
+            target_path = Path(tempfile.gettempdir()) / "koala-cut-setup.exe"
+        else:
+            target_path = exe_dir / "koala-cut.new.exe"
+
         def _download():
-            req = urllib.request.Request(
-                download_url,
-                headers={"User-Agent": f"koala-cut-updater/{self.current_version}"},
-            )
-            with urllib.request.urlopen(req, timeout=60) as response, open(new_exe, "wb") as out_file:
-                total_size = int(response.headers.get("content-length", 0))
-                downloaded = 0
-                chunk_size = 128 * 1024
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    out_file.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0 and progress_callback:
-                        pct = int((downloaded / total_size) * 100)
-                        progress_callback(pct)
+            try:
+                req = urllib.request.Request(
+                    download_url,
+                    headers={"User-Agent": f"koala-cut-updater/{self.current_version}"},
+                )
+                with urllib.request.urlopen(req, timeout=120) as response, open(target_path, "wb") as out_file:
+                    total_size = int(response.headers.get("content-length", 0))
+                    self.progress["total_bytes"] = total_size
+                    downloaded = 0
+                    chunk_size = 256 * 1024  # 256 KB chunks
+
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        out_file.write(chunk)
+                        downloaded += len(chunk)
+                        self.progress["downloaded_bytes"] = downloaded
+
+                        if total_size > 0:
+                            pct = min(int((downloaded / total_size) * 100), 100)
+                            self.progress["percent"] = pct
+                            if progress_callback:
+                                progress_callback(pct)
+            except Exception as e:
+                self.progress["status"] = "error"
+                self.progress["error"] = str(e)
+                raise
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _download)
+        try:
+            await loop.run_in_executor(None, _download)
+        except Exception as err:
+            logger.error(f"Download failed: {err}")
+            return False
 
-        # 2. Generate a Windows batch helper to swap binaries and restart
-        bat_content = f"""@echo off
-timeout /t 2 /nobreak >nul
-del "{current_exe}"
-move /y "{new_exe}" "{current_exe}"
+        self.progress["status"] = "installing"
+        self.progress["percent"] = 100
+
+        # Execute installer or swap script
+        if is_setup:
+            # Launch Inno Setup in silent mode with app restart
+            cmd = [str(target_path), "/SILENT", "/SP-", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"]
+            subprocess.Popen(
+                cmd,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                close_fds=True,
+            )
+        else:
+            # Generate a Windows batch helper with retry logic to swap portable binaries safely
+            script_path = exe_dir / "update_and_restart.bat"
+            bat_content = f"""@echo off
+setlocal enabledelayedexpansion
+set RETRY=0
+:loop
+timeout /t 1 /nobreak >nul
+del "{current_exe}" 2>nul
+if exist "{current_exe}" (
+    set /a RETRY+=1
+    if !RETRY! leq 15 goto loop
+)
+move /y "{target_path}" "{current_exe}"
 start "" "{current_exe}"
 del "%~f0"
 """
-        script_path.write_text(bat_content, encoding="utf-8")
+            script_path.write_text(bat_content, encoding="utf-8")
+            subprocess.Popen(
+                ["cmd.exe", "/c", str(script_path)],
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                close_fds=True,
+            )
 
-        # 3. Launch the batch script detached and exit current process
-        subprocess.Popen(
-            ["cmd.exe", "/c", str(script_path)],
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-            close_fds=True,
-        )
-        
-        # Give a moment for response to return before killing app
+        self.progress["status"] = "completed"
         asyncio.create_task(self._delayed_exit())
         return True
 
     async def _delayed_exit(self) -> None:
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(1.5)
         os._exit(0)
 
 

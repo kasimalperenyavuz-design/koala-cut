@@ -75,7 +75,7 @@
           <span class="font-bold text-base tracking-tight text-white">koala<span class="text-[var(--accent)]">-cut</span></span>
           <button id="btn-check-updates" title="Güncellemeleri Denetle" class="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded bg-[#18181c] hover:bg-[#222228] text-slate-400 hover:text-slate-200 font-mono font-medium border border-white/10 transition-colors cursor-pointer">
             <i data-lucide="refresh-cw" id="icon-update-refresh" class="w-2.5 h-2.5"></i>
-            <span id="header-version-text">v1.3.0</span>
+            <span id="header-version-text">v1.3.1</span>
           </button>
         </div>
         <p class="text-[10px] text-slate-400">Hızlı Video Kurgu, Ses İyileştirme ve Akıllı Sıkıştırma</p>
@@ -126,7 +126,7 @@
         <div class="space-y-2">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-medium">
             <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
-            Hızlı, Güvenli ve Tamamen Yerel Medya İşleme • v1.3.0
+            Hızlı, Güvenli ve Tamamen Yerel Medya İşleme • v1.3.1
           </div>
           <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
             Videoları Kurgulayın, İyileştirin ve <span class="text-gradient">Sıkıştırın</span>
@@ -2052,6 +2052,90 @@
           Anladım
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Auto-Update Notification & Installation Modal -->
+  <div id="update-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md hidden p-4 transition-all">
+    <div class="w-full max-w-lg rounded-2xl bg-[#121216] border border-white/10 shadow-2xl p-6 flex flex-col gap-4 text-slate-200">
+      
+      <!-- Header -->
+      <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-xl shadow-lg shadow-indigo-500/20 select-none">
+            🚀
+          </div>
+          <div>
+            <h3 id="update-modal-title" class="text-base font-bold text-white tracking-tight">Yeni Güncelleme Mevcut!</h3>
+            <p id="update-repo-label" class="text-[11px] text-slate-400 font-mono">GitHub: kasimalperenyavuz-design/koala-cut</p>
+          </div>
+        </div>
+        <button id="btn-dismiss-update" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Version Badges -->
+      <div class="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#18181f] border border-white/5 text-xs font-mono">
+        <div class="flex items-center gap-2">
+          <span class="text-slate-400">Mevcut:</span>
+          <span id="update-current-ver" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold">v1.3.0</span>
+        </div>
+        <i data-lucide="arrow-right" class="w-4 h-4 text-indigo-400"></i>
+        <div class="flex items-center gap-2">
+          <span class="text-indigo-400 font-bold">Yeni Sürüm:</span>
+          <span id="update-latest-ver" class="px-2 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/30 text-indigo-300 font-bold">v1.3.1</span>
+        </div>
+      </div>
+
+      <!-- Changelog Box -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+          Yenilikler ve Değişiklikler:
+        </label>
+        <div id="update-changelog" class="max-h-40 overflow-y-auto p-3.5 rounded-xl bg-black/40 border border-white/5 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-sans custom-scrollbar select-text">
+          Yeni özellikler ve optimizasyonlar.
+        </div>
+      </div>
+
+      <!-- Live Download Progress -->
+      <div id="update-progress-container" class="hidden flex flex-col gap-2 p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/20">
+        <div class="flex items-center justify-between text-xs">
+          <span id="update-progress-status" class="text-indigo-300 font-medium flex items-center gap-2">
+            <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-indigo-400"></i>
+            Yeni sürüm indiriliyor...
+          </span>
+          <span id="update-progress-pct" class="font-mono text-indigo-300 font-bold">0%</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+          <div id="update-progress-bar" class="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-300 rounded-full" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div id="update-action-buttons" class="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+        <button id="btn-toggle-repo-edit" class="text-[11px] text-slate-400 hover:text-slate-300 mr-auto flex items-center gap-1 cursor-pointer">
+          <i data-lucide="settings" class="w-3 h-3"></i>
+          <span>Depo Ayarı</span>
+        </button>
+        <button id="btn-dismiss-update-sub" onclick="document.getElementById('update-modal').classList.add('hidden')" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/5 border border-white/5 transition-colors cursor-pointer">
+          Daha Sonra
+        </button>
+        <button id="btn-start-update" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2 cursor-pointer">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Şimdi Otomatik Güncelle</span>
+        </button>
+      </div>
+
+      <!-- Hidden Repo Config Box -->
+      <div id="repo-edit-box" class="hidden flex items-center gap-2 pt-2 border-t border-white/5">
+        <input type="text" id="input-custom-repo" placeholder="kullanici/depo" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500">
+        <button id="btn-save-custom-repo" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer">
+          Kaydet
+        </button>
+      </div>
+
     </div>
   </div>
 

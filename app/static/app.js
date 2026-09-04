@@ -5168,9 +5168,10 @@
 
       dom.btnStartUpdate.disabled = true;
       dom.updateProgressContainer.classList.remove('hidden');
-      dom.updateProgressStatus.textContent = 'Yeni sürüm indiriliyor...';
-      dom.updateProgressBar.style.width = '45%';
-      dom.updateProgressPct.textContent = '45%';
+      dom.updateProgressStatus.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-indigo-400"></i> İndirme başlatılıyor...';
+      dom.updateProgressBar.style.width = '0%';
+      dom.updateProgressPct.textContent = '0%';
+      refreshIcons();
 
       try {
         const res = await fetch('/api/updates/install', {
@@ -5180,16 +5181,46 @@
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Güncelleme başarısız');
+        if (!res.ok) throw new Error(data.detail || 'Güncelleme başlatılamadı');
 
-        dom.updateProgressBar.style.width = '100%';
-        dom.updateProgressPct.textContent = '100%';
-        dom.updateProgressStatus.textContent = 'Kuruluyor! Uygulama yeniden başlıyor...';
-        showToast('Güncelleme uygulandı! koala-cut yeniden başlatılıyor... 🐨', 'success');
+        // Poll progress
+        const pollInterval = setInterval(async () => {
+          try {
+            const pRes = await fetch('/api/updates/progress');
+            if (!pRes.ok) return;
+            const progress = await pRes.json();
 
-        setTimeout(() => {
-          window.location.reload();
-        }, 3500);
+            if (progress.status === 'downloading') {
+              const pct = progress.percent || 0;
+              dom.updateProgressBar.style.width = `${pct}%`;
+              if (progress.total_bytes > 0) {
+                const dlMb = (progress.downloaded_bytes / (1024 * 1024)).toFixed(1);
+                const totMb = (progress.total_bytes / (1024 * 1024)).toFixed(1);
+                dom.updateProgressPct.textContent = `${pct}% (${dlMb} / ${totMb} MB)`;
+              } else {
+                dom.updateProgressPct.textContent = `${pct}%`;
+              }
+              dom.updateProgressStatus.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-indigo-400"></i> Yeni sürüm indiriliyor...';
+              refreshIcons();
+            } else if (progress.status === 'installing' || progress.status === 'completed') {
+              clearInterval(pollInterval);
+              dom.updateProgressBar.style.width = '100%';
+              dom.updateProgressPct.textContent = '100%';
+              dom.updateProgressStatus.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i> Güncelleme kuruluyor! Yeniden başlıyor...';
+              refreshIcons();
+              showToast('Güncelleme uygulanıyor! koala-cut yeniden başlatılıyor... 🐨', 'success');
+
+              setTimeout(() => {
+                window.location.reload();
+              }, 4000);
+            } else if (progress.status === 'error') {
+              clearInterval(pollInterval);
+              throw new Error(progress.error || 'İndirme hatası oluştu');
+            }
+          } catch (pollErr) {
+            // Ignore temporary network hiccups during poll
+          }
+        }, 600);
       } catch (err) {
         showToast(`Güncelleme yüklenemedi: ${err.message}`, 'error');
         dom.updateProgressContainer.classList.add('hidden');

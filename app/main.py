@@ -533,13 +533,24 @@ async def set_update_config(payload: UpdateConfigRequest):
     return {"success": True, "repo": updater_service.repo}
 
 
+@app.get("/api/updates/progress")
+async def get_update_progress():
+    """Return live update download and installation progress."""
+    return updater_service.get_progress()
+
+
 @app.post("/api/updates/install")
 async def install_update(payload: InstallUpdateRequest):
-    """Download the new release asset and trigger self-update restart."""
+    """Download the new release asset in the background and trigger self-update restart."""
     if not payload.download_url:
         raise HTTPException(status_code=400, detail="Download URL cannot be empty.")
-    success = await updater_service.download_and_install_update(payload.download_url)
-    return {"success": success, "message": "Güncelleme başlatıldı. Uygulama yeniden başlıyor..."}
+    
+    current_progress = updater_service.get_progress()
+    if current_progress.get("status") == "downloading":
+        return {"success": True, "message": "Güncelleme zaten indiriliyor."}
+
+    asyncio.create_task(updater_service.download_and_install_update(payload.download_url))
+    return {"success": True, "message": "Güncelleme indirmesi başlatıldı."}
 
 
 # ---------------------------------------------------------------------------
