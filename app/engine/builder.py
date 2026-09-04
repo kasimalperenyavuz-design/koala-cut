@@ -60,6 +60,9 @@ class TimelineClip(BaseModel):
     scale: float = Field(default=1.0, gt=0.0, le=5.0, description="Visual scale multiplier (1.0 = 100%, 0.35 = PIP)")
     rotation: float = Field(default=0.0, ge=-180.0, le=180.0, description="Rotation angle in degrees")
     opacity: float = Field(default=1.0, ge=0.0, le=1.0, description="Opacity (1.0 = 100% opaque)")
+    # AI Suite: Neural Voice Isolation (RNNoise)
+    neural_voice_isolation: bool = Field(default=False, description="Apply RNNoise deep learning voice isolation")
+    voice_isolation_mix: float = Field(default=1.0, ge=0.0, le=1.0, description="Voice isolation intensity (0.0 - 1.0)")
 
     @model_validator(mode="after")
     def validate_clip(self) -> "TimelineClip":
@@ -115,6 +118,12 @@ class VideoFilterConfig(BaseModel):
     remove_audio: bool = Field(default=False, description="Strip audio stream entirely")
     normalize_audio: bool = Field(default=False, description="Global loudness normalization (EBU R128)")
     target_lufs: float = Field(default=-14.0, description="Target integrated loudness in LUFS (-14 for web/social)")
+    # AI Suite: Neural Voice Isolation (RNNoise)
+    neural_voice_isolation: bool = Field(default=False, description="Global RNNoise voice isolation")
+    voice_isolation_mix: float = Field(default=1.0, ge=0.0, le=1.0, description="Voice isolation intensity (0.0 - 1.0)")
+    # AI Suite: Subtitle Burn-In
+    burn_subtitles: bool = Field(default=False, description="Hardcode/burn subtitles onto the video stream")
+    subtitle_file_path: Optional[str] = Field(default=None, description="Path to .srt subtitle file to burn-in")
     fast_seek: bool = Field(default=True, description="Place trim flags before input for fast seek")
     hwaccel: str = Field(default="auto", description="Hardware acceleration mode ('auto', 'nvenc', 'qsv', 'amf', 'cpu')")
     timeline_tracks: Optional[list[TimelineTrack]] = Field(
@@ -265,7 +274,23 @@ class FFmpegCommandBuilder:
         if config.fps is not None and config.fps > 0:
             filters.append(f"fps=fps={config.fps}")
 
+        # AI Suite: Burn-in Subtitles
+        if config.burn_subtitles and config.subtitle_file_path and os.path.exists(config.subtitle_file_path):
+            safe_sub_path = os.path.abspath(config.subtitle_file_path).replace("\\", "/").replace(":", "\\:")
+            # High-legibility subtitles with solid outline
+            style_str = "force_style='FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1.5,MarginV=30'"
+            filters.append(f"subtitles=filename='{safe_sub_path}':{style_str}")
+
         return filters
+
+    @staticmethod
+    def get_rnnoise_model_path() -> Optional[str]:
+        """Locate the bundled RNNoise neural model (bd.rnnn)."""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, "models", "bd.rnnn")
+        if os.path.exists(model_path):
+            return model_path
+        return None
 
     def calculate_keep_intervals(
         self,
@@ -486,6 +511,12 @@ class FFmpegCommandBuilder:
                         nr_val = 12 if clip.denoise_level == "low" else (25 if clip.denoise_level == "high" else 18)
                         nf_val = -50 if clip.denoise_level == "low" else (-40 if clip.denoise_level == "high" else -45)
                         atrim_parts.extend(["highpass=f=80", f"afftdn=nr={nr_val}:nf={nf_val}:tn=1", "lowpass=f=12000"])
+                    if clip.neural_voice_isolation or config.neural_voice_isolation:
+                        mix = clip.voice_isolation_mix if clip.neural_voice_isolation else config.voice_isolation_mix
+                        model_path = self.get_rnnoise_model_path()
+                        if model_path:
+                            safe_model_path = model_path.replace("\\", "/").replace(":", "\\:")
+                            atrim_parts.append(f"arnndn=m='{safe_model_path}':mix={mix:.2f}")
                     if clip.normalize_audio or config.normalize_audio:
                         target_l = clip.target_lufs if clip.normalize_audio else config.target_lufs
                         atrim_parts.append(f"loudnorm=I={target_l:.1f}:LRA=11:TP=-1.5")
@@ -519,6 +550,13 @@ class FFmpegCommandBuilder:
                         nr_val = 12 if aclip.denoise_level == "low" else (25 if aclip.denoise_level == "high" else 18)
                         nf_val = -50 if aclip.denoise_level == "low" else (-40 if aclip.denoise_level == "high" else -45)
                         afilters.extend(["highpass=f=80", f"afftdn=nr={nr_val}:nf={nf_val}:tn=1", "lowpass=f=12000"])
+                    # AI Suite: Neural Voice Isolation (RNNoise)
+                    if aclip.neural_voice_isolation or config.neural_voice_isolation:
+                        mix = aclip.voice_isolation_mix if aclip.neural_voice_isolation else config.voice_isolation_mix
+                        model_path = self.get_rnnoise_model_path()
+                        if model_path:
+                            safe_model_path = model_path.replace("\\", "/").replace(":", "\\:")
+                            afilters.append(f"arnndn=m='{safe_model_path}':mix={mix:.2f}")
                     # Phase 2: Loudness Normalization
                     if aclip.normalize_audio or config.normalize_audio:
                         target_l = aclip.target_lufs if aclip.normalize_audio else config.target_lufs
@@ -731,9 +769,18 @@ class FFmpegCommandBuilder:
         if config.remove_audio:
             cmd.append("-an")
         else:
-            if not has_timeline and not has_multi_cuts and config.normalize_audio:
-                cmd.extend(["-af", f"loudnorm=I={config.target_lufs:.1f}:LRA=11:TP=-1.5"])
-            if config.mode == "copy" and not config.normalize_audio:
+            if not has_timeline and not has_multi_cuts:
+                simple_af = []
+                if config.neural_voice_isolation:
+                    model_path = self.get_rnnoise_model_path()
+                    if model_path:
+                        safe_model_path = model_path.replace("\\", "/").replace(":", "\\:")
+                        simple_af.append(f"arnndn=m='{safe_model_path}':mix={config.voice_isolation_mix:.2f}")
+                if config.normalize_audio:
+                    simple_af.append(f"loudnorm=I={config.target_lufs:.1f}:LRA=11:TP=-1.5")
+                if simple_af:
+                    cmd.extend(["-af", ",".join(simple_af)])
+            if config.mode == "copy" and not config.normalize_audio and not config.neural_voice_isolation:
                 cmd.extend(["-c:a", "copy"])
             else:
                 cmd.extend(["-c:a", "aac", "-b:a", f"{config.audio_bitrate_kbps}k"])

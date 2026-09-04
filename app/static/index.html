@@ -225,6 +225,11 @@
               <!-- Secondary Overlay Video Player (For Live PIP / Multi-Layer Preview) -->
               <video id="overlay-video-player" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden z-20" muted playsinline preload="metadata"></video>
 
+              <!-- Live Subtitle Overlay Previewer -->
+              <div id="player-subtitle-overlay" class="absolute bottom-6 left-6 right-6 flex items-center justify-center text-center pointer-events-none z-25 hidden">
+                <span id="player-subtitle-text" class="px-3 py-1.5 rounded-lg bg-black/80 backdrop-blur-sm text-white font-bold text-xs sm:text-sm tracking-wide shadow-xl border border-white/15 max-w-[85%] inline-block"></span>
+              </div>
+
               <!-- Magnetic Canvas Snapping Guides -->
               <div id="snap-guide-x" class="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-cyan-400 pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
               <div id="snap-guide-y" class="absolute left-0 right-0 top-1/2 h-[1.5px] bg-cyan-400 pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
@@ -301,22 +306,26 @@
           <div class="glass-panel rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col h-[520px]">
             
             <!-- Stüdyo Modülleri Sekme Başlığı -->
-            <div class="grid grid-cols-4 bg-slate-900/90 border-b border-white/10 text-xs text-center select-none p-1 gap-1 flex-shrink-0">
-              <button id="tab-nav-format" class="inspector-tab-btn active py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="format">
+            <div class="grid grid-cols-5 gap-1 p-1 bg-slate-900/90 rounded-2xl border border-white/5 text-xs font-semibold">
+              <button id="tab-nav-format" class="inspector-tab-btn active py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="format">
                 <i data-lucide="ratio" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>Boyut</span>
+                <span class="truncate">Boyut</span>
               </button>
-              <button id="tab-nav-compress" class="inspector-tab-btn py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="compress">
+              <button id="tab-nav-compress" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="compress">
                 <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i>
-                <span>Sıkıştır</span>
+                <span class="truncate">Sıkıştır</span>
               </button>
-              <button id="tab-nav-clip" class="inspector-tab-btn py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="clip">
+              <button id="tab-nav-clip" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="clip">
                 <i data-lucide="clapperboard" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>Klip</span>
+                <span class="truncate">Klip</span>
               </button>
-              <button id="tab-nav-audio" class="inspector-tab-btn py-2.5 px-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer" data-tab="audio">
+              <button id="tab-nav-audio" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="audio">
                 <i data-lucide="volume-2" class="w-3.5 h-3.5 text-indigo-400"></i>
-                <span>Ses</span>
+                <span class="truncate">Ses</span>
+              </button>
+              <button id="tab-nav-subtitle" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="subtitle">
+                <i data-lucide="subtitles" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span class="truncate">Altyazı</span>
               </button>
             </div>
 
@@ -801,6 +810,31 @@
                         <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 relative"></div>
                       </label>
                     </div>
+
+                    <!-- RNNoise Deep Learning Voice Isolation -->
+                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-purple-500/20 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-medium text-purple-200 block">🧠 RNNoise Yapay Zeka Ses İzolasyonu</span>
+                            <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300">299 KB Model</span>
+                          </div>
+                          <span class="text-[10px] text-slate-400 block">Kafe, sokak, klavye ve fan seslerini yok eder, kristal vokal bırakır</span>
+                        </div>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" id="check-clip-rnnoise" class="sr-only peer">
+                          <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-purple-600 relative"></div>
+                        </label>
+                      </div>
+                      <!-- RNNoise Mix Slider -->
+                      <div id="rnnoise-mix-container" class="space-y-1 pt-1 hidden">
+                        <div class="flex items-center justify-between text-[10px]">
+                          <span class="text-slate-400">İzolasyon Gücü:</span>
+                          <span id="rnnoise-mix-badge" class="font-mono text-purple-300 font-bold">%100 (Tam İzolasyon)</span>
+                        </div>
+                        <input type="range" id="slider-clip-rnnoise-mix" min="30" max="100" step="5" value="100" class="w-full">
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -853,6 +887,80 @@
                   </select>
                 </div>
                 <p class="text-[10px] text-slate-400">Konuşma ve standart videolar için 128 kbps idealdir.</p>
+              </div>
+            </div>
+
+            <!-- TAB 5: OTOMATİK ALTYAZI (FASTER-WHISPER) -->
+            <div id="tab-panel-subtitle" class="space-y-4 hidden">
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+                  Yapay Zeka Otomatik Altyazı
+                </label>
+                <p class="text-[11px] text-slate-400">Faster-Whisper INT8 ile Türkçe konuşmaları metne dökün</p>
+              </div>
+
+              <!-- Subtitle Generator Card -->
+              <div class="glass-card rounded-xl p-3.5 border border-amber-500/20 bg-amber-950/10 space-y-3">
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Model (Hafif INT8):</label>
+                    <select id="select-whisper-model" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none cursor-pointer">
+                      <option value="base" selected>Base (75 MB - Yüksek Doğruluk)</option>
+                      <option value="tiny">Tiny (39 MB - Ultra Hızlı)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Konuşma Dili:</label>
+                    <select id="select-whisper-lang" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none cursor-pointer">
+                      <option value="tr" selected>Türkçe (tr)</option>
+                      <option value="auto">Otomatik Algıla</option>
+                      <option value="en">İngilizce (en)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button id="btn-generate-subtitles" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                  <i data-lucide="mic" class="w-4 h-4"></i>
+                  <span>Altyazıları Otomatik Çıkar</span>
+                </button>
+
+                <div id="subtitle-loading-bar" class="hidden space-y-2 pt-1 text-center">
+                  <div class="flex items-center justify-center gap-2 text-xs text-amber-300">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span>Yapay zeka konuşmayı dinliyor ve çözümlüyor...</span>
+                  </div>
+                  <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div class="h-full bg-amber-500 rounded-full progress-animated w-full"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Subtitle Results Container -->
+              <div id="subtitle-results-container" class="space-y-3 hidden">
+                <!-- Action bar: Burn-in toggle & download buttons -->
+                <div class="p-2.5 rounded-xl bg-slate-900/90 border border-white/5 flex items-center justify-between gap-2">
+                  <label class="inline-flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+                    <input type="checkbox" id="check-burn-subtitles" class="sr-only peer">
+                    <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-500 relative"></div>
+                    <span class="font-medium text-[11px]">Videoya Göm (Burn-in)</span>
+                  </label>
+                  <div class="flex items-center gap-1.5">
+                    <button id="btn-download-srt" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono border border-white/10 transition-colors cursor-pointer flex items-center gap-1" title=".SRT Formatında İndir">
+                      <i data-lucide="download" class="w-3 h-3 text-amber-400"></i>
+                      <span>.SRT</span>
+                    </button>
+                    <button id="btn-download-vtt" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono border border-white/10 transition-colors cursor-pointer flex items-center gap-1" title=".VTT Formatında İndir">
+                      <i data-lucide="download" class="w-3 h-3 text-orange-400"></i>
+                      <span>.VTT</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Subtitle Segment List -->
+                <div class="space-y-1.5 max-h-[220px] overflow-y-auto custom-scrollbar pr-1" id="subtitle-items-list">
+                  <!-- Generated subtitle items rendered here -->
+                </div>
               </div>
             </div>
 
@@ -925,6 +1033,12 @@
             <button id="btn-toggle-ripple" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Boşlukları Otomatik Kapat (Ripple)">
               <i data-lucide="minimize-2" class="w-3.5 h-3.5 text-indigo-400"></i>
               <span id="ripple-status-text">Boşluğu Kapat: Açık</span>
+            </button>
+
+            <!-- Smart Silence Removal Button -->
+            <button id="btn-smart-silence" class="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/30 transition-all flex items-center gap-1.5 font-semibold cursor-pointer active:scale-95 shadow-sm" title="Sessizlikleri Tara ve Budala (Auto Jump Cut)">
+              <i data-lucide="scissors-line-dashed" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span>Sessizlik Budama</span>
             </button>
 
             <!-- Reset Timeline -->
@@ -1524,6 +1638,96 @@
         <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-400"></i>
         <span>Oynatıcıyı Buraya Getir</span>
       </button>
+    </div>
+  </div>
+
+  <!-- Smart Silence Removal Modal Dialog -->
+  <div id="modal-silence-detector" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-panel w-full max-w-md rounded-2xl border border-amber-500/30 bg-slate-900/95 shadow-2xl p-5 space-y-4 text-slate-200">
+      <div class="flex items-center justify-between pb-2 border-b border-white/10">
+        <div class="flex items-center gap-2">
+          <i data-lucide="scissors-line-dashed" class="w-5 h-5 text-amber-400"></i>
+          <h3 class="font-bold text-sm text-white">Akıllı Sessizlik Budama (Auto Jump Cut)</h3>
+        </div>
+        <button id="btn-close-silence-modal" class="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        Konuşma duraklamalarını ve sessiz boşlukları otomatik tespit edip zaman çizgisinde jiletle keserek boşlukları kapatır.
+      </p>
+
+      <!-- Settings Controls -->
+      <div class="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-white/5">
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-slate-300 font-medium">Gürültü Eşiği (Hassasiyet):</span>
+            <span id="silence-threshold-badge" class="font-mono text-amber-300 font-bold">-35 dB</span>
+          </div>
+          <input type="range" id="slider-silence-threshold" min="-50" max="-20" step="1" value="-35" class="w-full accent-amber-500 cursor-pointer">
+          <span class="text-[10px] text-slate-500 block">-35 dB standart konuşma ortamları için idealdir.</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">Min. Sessizlik:</label>
+            <select id="select-min-silence" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none cursor-pointer">
+              <option value="0.3">0.30 sn (Hızlı / Agresif)</option>
+              <option value="0.5" selected>0.50 sn (Doğal / Önerilen)</option>
+              <option value="0.8">0.80 sn (Sadece Uzun Boşluklar)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">Güvenlik Payı (Tampon):</label>
+            <select id="select-silence-pad" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none cursor-pointer">
+              <option value="0.05">0.05 sn (Sıkı)</option>
+              <option value="0.10" selected>0.10 sn (Kelimeleri Korumalı)</option>
+              <option value="0.15">0.15 sn (Geniş)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Start Scan Button -->
+      <button id="btn-start-silence-scan" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer">
+        <i data-lucide="scan" class="w-4 h-4"></i>
+        <span>Sessizlikleri Tara</span>
+      </button>
+
+      <!-- Scanning Indicator -->
+      <div id="silence-scanning-indicator" class="hidden space-y-2 py-2 text-center">
+        <div class="flex items-center justify-center gap-2 text-xs text-amber-300">
+          <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+          <span>FFmpeg ses dalgalarını tarıyor...</span>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+          <div class="h-full bg-amber-500 rounded-full progress-animated w-full"></div>
+        </div>
+      </div>
+
+      <!-- Result Box -->
+      <div id="silence-results-box" class="hidden space-y-3 pt-2">
+        <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1">
+          <div class="flex items-center justify-between text-amber-200 font-semibold">
+            <span id="silence-count-badge">🎯 0 sessizlik bulundu</span>
+            <span id="silence-saved-badge" class="font-mono text-emerald-400 font-bold">0.0s (%0) Tasarruf</span>
+          </div>
+          <p class="text-[11px] text-slate-300">
+            Aşağıdaki butona tıkladığınızda klibiniz konuşma parçalarına bölünerek sessiz aralıklar atılacaktır.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btn-apply-silence-cut" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+            <i data-lucide="scissors" class="w-3.5 h-3.5"></i>
+            <span>Klipleri Böl & Boşlukları Kapat</span>
+          </button>
+          <button id="btn-cancel-silence-cut" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-white/5 transition-colors cursor-pointer">
+            Vazgeç
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

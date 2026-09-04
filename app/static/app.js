@@ -63,6 +63,15 @@
     activeJobId: null,
     activeEventSource: null,
     jobOutputSize: null,
+
+    // AI Features
+    subtitles: {
+      id: null,
+      segments: [],
+      srt_file_path: null,
+      burn_subtitles: false,
+    },
+    lastSilenceResult: null,
   };
 
   // ---------------------------------------------------------------------------
@@ -215,6 +224,42 @@
     denoiseLevelContainer: document.getElementById('denoise-level-container'),
     checkClipLoudnorm: document.getElementById('check-clip-loudnorm'),
     checkGlobalLoudnorm: document.getElementById('check-global-loudnorm'),
+    // AI Suite: RNNoise Neural Voice Isolation
+    checkClipRnnoise: document.getElementById('check-clip-rnnoise'),
+    rnnoiseMixContainer: document.getElementById('rnnoise-mix-container'),
+    sliderClipRnnoiseMix: document.getElementById('slider-clip-rnnoise-mix'),
+    rnnoiseMixBadge: document.getElementById('rnnoise-mix-badge'),
+
+    // AI Suite: Smart Silence Removal (Auto Jump Cut)
+    btnSmartSilence: document.getElementById('btn-smart-silence'),
+    modalSilenceDetector: document.getElementById('modal-silence-detector'),
+    btnCloseSilenceModal: document.getElementById('btn-close-silence-modal'),
+    sliderSilenceThreshold: document.getElementById('slider-silence-threshold'),
+    silenceThresholdBadge: document.getElementById('silence-threshold-badge'),
+    selectMinSilence: document.getElementById('select-min-silence'),
+    selectSilencePad: document.getElementById('select-silence-pad'),
+    btnStartSilenceScan: document.getElementById('btn-start-silence-scan'),
+    silenceScanningIndicator: document.getElementById('silence-scanning-indicator'),
+    silenceResultsBox: document.getElementById('silence-results-box'),
+    silenceCountBadge: document.getElementById('silence-count-badge'),
+    silenceSavedBadge: document.getElementById('silence-saved-badge'),
+    btnApplySilenceCut: document.getElementById('btn-apply-silence-cut'),
+    btnCancelSilenceCut: document.getElementById('btn-cancel-silence-cut'),
+
+    // AI Suite: Faster-Whisper Subtitles
+    tabNavSubtitle: document.getElementById('tab-nav-subtitle'),
+    tabPanelSubtitle: document.getElementById('tab-panel-subtitle'),
+    playerSubtitleOverlay: document.getElementById('player-subtitle-overlay'),
+    playerSubtitleText: document.getElementById('player-subtitle-text'),
+    selectWhisperModel: document.getElementById('select-whisper-model'),
+    selectWhisperLang: document.getElementById('select-whisper-lang'),
+    btnGenerateSubtitles: document.getElementById('btn-generate-subtitles'),
+    subtitleLoadingBar: document.getElementById('subtitle-loading-bar'),
+    subtitleResultsContainer: document.getElementById('subtitle-results-container'),
+    checkBurnSubtitles: document.getElementById('check-burn-subtitles'),
+    btnDownloadSrt: document.getElementById('btn-download-srt'),
+    btnDownloadVtt: document.getElementById('btn-download-vtt'),
+    subtitleItemsList: document.getElementById('subtitle-items-list'),
 
     // Aspect & Fit
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
@@ -852,6 +897,7 @@
     if (dom.playerCurrentTime) {
       dom.playerCurrentTime.textContent = formatTime(state.playheadTime);
     }
+    updateLiveSubtitleOverlay(state.playheadTime);
 
     const { base, overlay } = getActiveVideoLayersAtTime(state.playheadTime);
     let activeVideoClipId = null;
@@ -1117,6 +1163,9 @@
       pos_y: opts.pos_y !== undefined ? opts.pos_y : 0.0,
       rotation: opts.rotation !== undefined ? opts.rotation : 0.0,
       opacity: opts.opacity !== undefined ? opts.opacity : 1.0,
+      // AI Suite: RNNoise Neural Voice Isolation
+      neural_voice_isolation: opts.neural_voice_isolation || false,
+      voice_isolation_mix: opts.voice_isolation_mix !== undefined ? opts.voice_isolation_mix : 1.0,
       get duration() {
         return getClipDuration(this);
       },
@@ -1960,6 +2009,15 @@
     });
     if (dom.checkClipLoudnorm) dom.checkClipLoudnorm.checked = !!clip.normalize_audio;
 
+    // AI Suite: RNNoise Neural Voice Isolation
+    if (dom.checkClipRnnoise) dom.checkClipRnnoise.checked = !!clip.neural_voice_isolation;
+    if (dom.rnnoiseMixContainer) {
+      dom.rnnoiseMixContainer.classList.toggle('hidden', !clip.neural_voice_isolation);
+    }
+    const currentRnnoiseMix = Math.round((clip.voice_isolation_mix !== undefined ? clip.voice_isolation_mix : 1.0) * 100);
+    if (dom.sliderClipRnnoiseMix) dom.sliderClipRnnoiseMix.value = currentRnnoiseMix;
+    if (dom.rnnoiseMixBadge) dom.rnnoiseMixBadge.textContent = `%${currentRnnoiseMix}${currentRnnoiseMix === 100 ? ' (Tam İzolasyon)' : ''}`;
+
     updateTransformGizmoUI();
   }
 
@@ -2309,6 +2367,31 @@
         if (!sel) return;
         sel.clip.normalize_audio = e.target.checked;
         showToast(sel.clip.normalize_audio ? 'Ses Normalizasyonu (-14 LUFS) aktif 🔊' : 'Ses Normalizasyonu kapatıldı', 'info');
+      });
+    }
+
+    // RNNoise Neural Voice Isolation Toggle & Slider
+    if (dom.checkClipRnnoise) {
+      dom.checkClipRnnoise.addEventListener('change', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.neural_voice_isolation = e.target.checked;
+        if (dom.rnnoiseMixContainer) {
+          dom.rnnoiseMixContainer.classList.toggle('hidden', !sel.clip.neural_voice_isolation);
+        }
+        showToast(sel.clip.neural_voice_isolation ? 'RNNoise Yapay Zeka Ses İzolasyonu aktif 🧠' : 'Ses İzolasyonu kapatıldı', 'info');
+      });
+    }
+
+    if (dom.sliderClipRnnoiseMix) {
+      dom.sliderClipRnnoiseMix.addEventListener('input', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        const val = parseInt(e.target.value, 10);
+        sel.clip.voice_isolation_mix = val / 100;
+        if (dom.rnnoiseMixBadge) {
+          dom.rnnoiseMixBadge.textContent = `%${val}${val === 100 ? ' (Tam İzolasyon)' : ''}`;
+        }
       });
     }
 
@@ -3421,6 +3504,7 @@
       { key: 'compress', nav: dom.tabNavCompress, panel: dom.tabPanelCompress },
       { key: 'clip', nav: dom.tabNavClip, panel: dom.tabPanelClip },
       { key: 'audio', nav: dom.tabNavAudio, panel: dom.tabPanelAudio },
+      { key: 'subtitle', nav: dom.tabNavSubtitle, panel: dom.tabPanelSubtitle },
     ];
 
     tabs.forEach(({ key, nav, panel }) => {
@@ -3442,6 +3526,7 @@
       { key: 'compress', nav: dom.tabNavCompress },
       { key: 'clip', nav: dom.tabNavClip },
       { key: 'audio', nav: dom.tabNavAudio },
+      { key: 'subtitle', nav: dom.tabNavSubtitle },
     ];
 
     tabs.forEach(({ key, nav }) => {
@@ -3764,6 +3849,8 @@
           denoise_level: c.denoise_level || 'medium',
           normalize_audio: !!c.normalize_audio,
           target_lufs: c.target_lufs || -14.0,
+          neural_voice_isolation: !!c.neural_voice_isolation,
+          voice_isolation_mix: c.voice_isolation_mix !== undefined ? c.voice_isolation_mix : 1.0,
           scale: c.scale !== undefined ? c.scale : 1.0,
           pos_x: c.pos_x || 0.0,
           pos_y: c.pos_y || 0.0,
@@ -3776,6 +3863,12 @@
     if (dom.checkGlobalLoudnorm && dom.checkGlobalLoudnorm.checked) {
       config.normalize_audio = true;
       config.target_lufs = -14.0;
+    }
+
+    // AI Suite: Burn-in Subtitles
+    if (dom.checkBurnSubtitles && dom.checkBurnSubtitles.checked && state.subtitles && state.subtitles.srt_file_path) {
+      config.burn_subtitles = true;
+      config.subtitle_file_path = state.subtitles.srt_file_path;
     }
 
     // Aspect Ratio
@@ -4254,6 +4347,253 @@
   }
 
   // ---------------------------------------------------------------------------
+  // AI Suite: Live Subtitle Overlay Preview
+  // ---------------------------------------------------------------------------
+  function updateLiveSubtitleOverlay(curTime) {
+    if (!dom.playerSubtitleOverlay || !dom.playerSubtitleText) return;
+    if (!state.subtitles || !state.subtitles.segments || state.subtitles.segments.length === 0) {
+      dom.playerSubtitleOverlay.classList.add('hidden');
+      return;
+    }
+    const seg = state.subtitles.segments.find((s) => curTime >= s.start && curTime <= s.end);
+    if (seg && seg.text && seg.text.trim()) {
+      dom.playerSubtitleText.textContent = seg.text.trim();
+      dom.playerSubtitleOverlay.classList.remove('hidden');
+    } else {
+      dom.playerSubtitleOverlay.classList.add('hidden');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI Suite: Smart Silence Removal & Auto Jump Cut
+  // ---------------------------------------------------------------------------
+  function initSilenceDetector() {
+    if (!dom.btnSmartSilence || !dom.modalSilenceDetector) return;
+
+    dom.btnSmartSilence.addEventListener('click', () => {
+      if (!state.fileId) {
+        showToast('Lütfen önce bir video yükleyin.', 'error');
+        return;
+      }
+      dom.modalSilenceDetector.classList.remove('hidden');
+      refreshIcons();
+    });
+
+    const closeModal = () => {
+      dom.modalSilenceDetector.classList.add('hidden');
+      if (dom.silenceResultsBox) dom.silenceResultsBox.classList.add('hidden');
+      if (dom.silenceScanningIndicator) dom.silenceScanningIndicator.classList.add('hidden');
+    };
+
+    if (dom.btnCloseSilenceModal) dom.btnCloseSilenceModal.addEventListener('click', closeModal);
+    if (dom.btnCancelSilenceCut) dom.btnCancelSilenceCut.addEventListener('click', closeModal);
+
+    if (dom.sliderSilenceThreshold && dom.silenceThresholdBadge) {
+      dom.sliderSilenceThreshold.addEventListener('input', (e) => {
+        dom.silenceThresholdBadge.textContent = `${e.target.value} dB`;
+      });
+    }
+
+    if (dom.btnStartSilenceScan) {
+      dom.btnStartSilenceScan.addEventListener('click', async () => {
+        if (!state.fileId) return;
+
+        dom.btnStartSilenceScan.disabled = true;
+        if (dom.silenceScanningIndicator) dom.silenceScanningIndicator.classList.remove('hidden');
+        if (dom.silenceResultsBox) dom.silenceResultsBox.classList.add('hidden');
+
+        try {
+          const res = await fetch('/api/ai/silence-detect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              file_id: state.fileId,
+              noise_threshold_db: parseFloat(dom.sliderSilenceThreshold ? dom.sliderSilenceThreshold.value : -35),
+              min_silence_sec: parseFloat(dom.selectMinSilence ? dom.selectMinSilence.value : 0.5),
+              padding_sec: parseFloat(dom.selectSilencePad ? dom.selectSilencePad.value : 0.1),
+            }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Sessizlik taraması başarısız oldu');
+          }
+
+          const result = await res.json();
+          state.lastSilenceResult = result;
+
+          if (dom.silenceCountBadge) {
+            dom.silenceCountBadge.textContent = `🎯 ${result.silence_count} sessizlik bulundu`;
+          }
+          if (dom.silenceSavedBadge) {
+            dom.silenceSavedBadge.textContent = `${result.total_silence_duration}s (%${result.saved_percent}) Tasarruf`;
+          }
+
+          if (dom.silenceResultsBox) dom.silenceResultsBox.classList.remove('hidden');
+          showToast(`Tarama tamamlandı! ${result.silence_count} sessizlik aralığı tespit edildi. 🎯`, 'success');
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          if (dom.silenceScanningIndicator) dom.silenceScanningIndicator.classList.add('hidden');
+          dom.btnStartSilenceScan.disabled = false;
+        }
+      });
+    }
+
+    if (dom.btnApplySilenceCut) {
+      dom.btnApplySilenceCut.addEventListener('click', () => {
+        if (!state.lastSilenceResult || !state.lastSilenceResult.speech_segments || state.lastSilenceResult.speech_segments.length === 0) {
+          showToast('Kırpılacak konuşma segmenti bulunamadı.', 'error');
+          return;
+        }
+
+        pushTimelineHistory();
+
+        const v1 = getV1Track();
+        if (!v1) return;
+
+        let cumulativeTime = 0.0;
+        const newClips = state.lastSilenceResult.speech_segments.map((seg, idx) => {
+          const clipId = `clip_${Date.now()}_${idx}`;
+          const clip = createClip(
+            clipId,
+            seg.start,
+            seg.end,
+            cumulativeTime,
+            1.0,
+            1.0,
+            state.fileId,
+            state.filename,
+            `/api/media/${state.fileId}`
+          );
+          cumulativeTime += (seg.end - seg.start);
+          return clip;
+        });
+
+        v1.clips = newClips;
+        state.selectedClipId = newClips[0] ? newClips[0].id : null;
+
+        renderTimelineTracks();
+        updateTimelineRuler();
+        updateClipInspector();
+        syncPreviewToTimeline(0, false);
+        closeModal();
+
+        showToast(`Auto Jump-Cut uygulandı! ${newClips.length} konuşma klibi bağlandı ✂️`, 'success');
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI Suite: Faster-Whisper Subtitle Studio
+  // ---------------------------------------------------------------------------
+  function initSubtitleStudio() {
+    if (!dom.btnGenerateSubtitles) return;
+
+    dom.btnGenerateSubtitles.addEventListener('click', async () => {
+      if (!state.fileId) {
+        showToast('Lütfen önce bir video yükleyin.', 'error');
+        return;
+      }
+
+      dom.btnGenerateSubtitles.disabled = true;
+      if (dom.subtitleLoadingBar) dom.subtitleLoadingBar.classList.remove('hidden');
+      if (dom.subtitleResultsContainer) dom.subtitleResultsContainer.classList.add('hidden');
+
+      try {
+        const modelSize = dom.selectWhisperModel ? dom.selectWhisperModel.value : 'base';
+        const language = dom.selectWhisperLang ? dom.selectWhisperLang.value : 'tr';
+
+        const res = await fetch('/api/ai/subtitles/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_id: state.fileId,
+            model_size: modelSize,
+            language: language,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Altyazı oluşturulamadı');
+        }
+
+        const data = await res.json();
+        state.subtitles = data;
+
+        renderSubtitleItems(data.segments);
+        if (dom.subtitleResultsContainer) dom.subtitleResultsContainer.classList.remove('hidden');
+
+        showToast(`Yapay zeka ${data.segments.length} satır altyazıyı çıkardı! 📝`, 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        if (dom.subtitleLoadingBar) dom.subtitleLoadingBar.classList.add('hidden');
+        dom.btnGenerateSubtitles.disabled = false;
+      }
+    });
+
+    function renderSubtitleItems(segments) {
+      if (!dom.subtitleItemsList) return;
+      dom.subtitleItemsList.innerHTML = '';
+
+      if (!segments || segments.length === 0) {
+        dom.subtitleItemsList.innerHTML = '<div class="p-3 text-center text-xs text-slate-500">Konuşma metni bulunamadı.</div>';
+        return;
+      }
+
+      segments.forEach((seg) => {
+        const item = document.createElement('div');
+        item.className = 'subtitle-item flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-white/5 hover:border-amber-500/30 transition-colors text-xs gap-2 cursor-pointer';
+        item.dataset.start = seg.start;
+        item.dataset.end = seg.end;
+
+        item.innerHTML = `
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <span class="font-mono text-[10px] text-amber-400 font-semibold px-1.5 py-0.5 rounded bg-amber-500/10">${formatTime(seg.start)}</span>
+            <span class="text-slate-500 text-[10px]">→</span>
+            <span class="font-mono text-[10px] text-slate-400 px-1.5 py-0.5 rounded bg-slate-800">${formatTime(seg.end)}</span>
+          </div>
+          <input type="text" class="subtitle-text-input flex-1 bg-transparent border-b border-transparent hover:border-slate-600 focus:border-amber-400 text-slate-200 text-xs px-1 py-0.5 outline-none font-medium truncate" value="${seg.text.replace(/"/g, '&quot;')}">
+        `;
+
+        item.querySelector('.flex-shrink-0').addEventListener('click', () => {
+          syncPreviewToTimeline(seg.start, false);
+        });
+
+        const input = item.querySelector('.subtitle-text-input');
+        input.addEventListener('input', (e) => {
+          seg.text = e.target.value;
+          updateLiveSubtitleOverlay(state.playheadTime);
+        });
+
+        dom.subtitleItemsList.appendChild(item);
+      });
+    }
+
+    if (dom.btnDownloadSrt) {
+      dom.btnDownloadSrt.addEventListener('click', () => {
+        if (!state.subtitles || !state.subtitles.id) {
+          showToast('Önce altyazı oluşturmalısınız.', 'error');
+          return;
+        }
+        window.location.href = `/api/ai/subtitles/${state.subtitles.id}/download?format=srt`;
+      });
+    }
+
+    if (dom.btnDownloadVtt) {
+      dom.btnDownloadVtt.addEventListener('click', () => {
+        if (!state.subtitles || !state.subtitles.id) {
+          showToast('Önce altyazı oluşturmalısınız.', 'error');
+          return;
+        }
+        window.location.href = `/api/ai/subtitles/${state.subtitles.id}/download?format=vtt`;
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Bootstrapping
   // ---------------------------------------------------------------------------
   function init() {
@@ -4263,6 +4603,8 @@
     initKeyboardShortcuts();
     initInspectorTabs();
     initAccordions();
+    initSilenceDetector();
+    initSubtitleStudio();
     initAspectRatioControls();
     initResolutionAndFpsControls();
     initCompressionControls();

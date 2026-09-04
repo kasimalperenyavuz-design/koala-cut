@@ -35,6 +35,8 @@ from app.services.storage import (
     storage_manager,
 )
 from app.services.updater import updater_service
+from app.services.silence_detector import SilenceDetector, SilenceDetectionResult
+from app.services.subtitle_service import SubtitleService, SubtitleResult
 
 logger = logging.getLogger(__name__)
 
@@ -489,6 +491,79 @@ async def install_update(payload: InstallUpdateRequest):
         raise HTTPException(status_code=400, detail="Download URL cannot be empty.")
     success = await updater_service.download_and_install_update(payload.download_url)
     return {"success": success, "message": "Güncelleme başlatıldı. Uygulama yeniden başlıyor..."}
+
+
+# ---------------------------------------------------------------------------
+# AI Suite: Silence Removal & Faster-Whisper Subtitles
+# ---------------------------------------------------------------------------
+
+class SilenceDetectRequest(BaseModel):
+    file_id: str
+    noise_threshold_db: float = Field(default=-35.0, description="Noise threshold in dB")
+    min_silence_sec: float = Field(default=0.5, ge=0.1, description="Minimum silence duration in seconds")
+    padding_sec: float = Field(default=0.1, ge=0.0, description="Safety padding around speech in seconds")
+
+
+@app.post("/api/ai/silence-detect")
+async def detect_silence_endpoint(payload: SilenceDetectRequest):
+    """Analyze audio for silent pauses and return speech / silence segments."""
+    media_path = storage_manager.resolve_media_path(payload.file_id)
+    if not media_path or not media_path.is_file():
+        raise HTTPException(status_code=404, detail="Input file not found.")
+
+    result = await SilenceDetector.detect_silence(
+        file_path=str(media_path),
+        noise_threshold_db=payload.noise_threshold_db,
+        min_silence_sec=payload.min_silence_sec,
+        padding_sec=payload.padding_sec,
+    )
+    return result
+
+
+class SubtitleGenerateRequest(BaseModel):
+    file_id: str
+    model_size: str = Field(default="base", description="Whisper model size ('tiny' or 'base')")
+    language: str = Field(default="tr", description="Language code e.g. 'tr', 'en', 'auto'")
+
+
+@app.post("/api/ai/subtitles/generate")
+async def generate_subtitles_endpoint(payload: SubtitleGenerateRequest):
+    """Transcribe video audio with Faster-Whisper and generate subtitles."""
+    media_path = storage_manager.resolve_media_path(payload.file_id)
+    if not media_path or not media_path.is_file():
+        raise HTTPException(status_code=404, detail="Input file not found.")
+
+    try:
+        result = await SubtitleService.generate_subtitles(
+            video_path=str(media_path),
+            language=payload.language,
+            model_size=payload.model_size,
+        )
+        return result
+    except Exception as e:
+        logger.exception("Subtitle generation error: %s", e)
+        raise HTTPException(status_code=500, detail=f"Altyazı oluşturulamadı: {str(e)}")
+
+
+@app.get("/api/ai/subtitles/{sub_id}/download")
+async def download_subtitles_endpoint(sub_id: str, format: str = "srt"):
+    """Download generated subtitle file (.srt or .vtt)."""
+    sub_dir = os.path.join(os.getcwd(), "outputs", "subtitles")
+    file_ext = "vtt" if format.lower() == "vtt" else "srt"
+    sub_file = os.path.join(sub_dir, f"sub_{sub_id}.{file_ext}")
+
+    if not os.path.exists(sub_file):
+        srt_file = os.path.join(sub_dir, f"sub_{sub_id}.srt")
+        if not os.path.exists(srt_file):
+            raise HTTPException(status_code=404, detail="Subtitle file not found.")
+        sub_file = srt_file
+        file_ext = "srt"
+
+    return FileResponse(
+        sub_file,
+        media_type="text/plain",
+        filename=f"subtitles_{sub_id}.{file_ext}",
+    )
 
 
 # ---------------------------------------------------------------------------
