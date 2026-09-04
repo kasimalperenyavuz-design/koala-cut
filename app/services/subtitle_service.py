@@ -59,6 +59,31 @@ class SubtitleResult(BaseModel):
     srt_file_path: Optional[str] = None
 
 
+def _ensure_regular_files(folder: str | Path) -> None:
+    """Ensure all model files in folder are regular files, resolving Windows symlinks to avoid CTranslate2 fopen errors."""
+    folder_path = Path(folder)
+    if not folder_path.exists():
+        return
+    for item in folder_path.rglob("*"):
+        if item.is_file():
+            try:
+                # Check if it is a symlink or reparse point on Windows
+                is_link = item.is_symlink()
+                if not is_link and sys.platform == "win32":
+                    attrs = item.stat().st_file_attributes
+                    if attrs & 0x400:  # FILE_ATTRIBUTE_REPARSE_POINT
+                        is_link = True
+
+                if is_link:
+                    resolved = item.resolve()
+                    if resolved.is_file() and resolved != item:
+                        content = resolved.read_bytes()
+                        item.unlink()
+                        item.write_bytes(content)
+            except Exception as e:
+                logger.warning(f"Could not resolve symlink for {item}: {e}")
+
+
 class SubtitleService:
     """Manages Whisper model instances and async audio transcription."""
 
@@ -70,17 +95,28 @@ class SubtitleService:
         """Load and cache the Faster-Whisper model in memory (INT8 on CPU)."""
         if model_size not in cls._models:
             from faster_whisper import WhisperModel
+            from faster_whisper.utils import download_model
 
             from app.services.storage import get_storage_dirs
             _, out_dir = get_storage_dirs()
             model_dir = os.fspath(out_dir.parent / "models" / "whisper" / model_size)
             os.makedirs(model_dir, exist_ok=True)
 
+            try:
+                # Download as regular files (no symlinks) directly into model_dir
+                model_path = download_model(model_size, output_dir=model_dir)
+            except Exception as dl_err:
+                logger.warning(f"download_model with output_dir failed, falling back to cache_dir: {dl_err}")
+                model_path = download_model(model_size, cache_dir=model_dir)
+
+            # Ensure any Windows symlinks/reparse points are resolved to actual regular files
+            _ensure_regular_files(model_path)
+            _ensure_regular_files(model_dir)
+
             cls._models[model_size] = WhisperModel(
-                model_size_or_path=model_size,
+                model_size_or_path=model_path,
                 device="cpu",
                 compute_type="int8",
-                download_root=model_dir,
                 cpu_threads=4,
             )
         return cls._models[model_size]
