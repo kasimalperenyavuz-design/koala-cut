@@ -1,78 +1,407 @@
-/* Studio Grade Dark Theme & Custom Controls */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* ==========================================================================
+   Koala-Cut NLE Studio Theme (CapCut & DaVinci Resolve Grade Dark Theme)
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg-main: #090d16;
-  --bg-surface: #0f172a;
-  --bg-card: rgba(23, 34, 56, 0.7);
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(99, 102, 241, 0.6);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.4);
+  /* Dark NLE Base Palette */
+  --bg-base: #09090b;        /* Neredeyse siyah ana zemin */
+  --bg-surface: #111114;     /* Paneller ve araç çubukları */
+  --bg-elevated: #18181c;    /* Kartlar, inspector içi kutular */
+  --bg-hover: #222228;       /* Hover durumları */
+  --bg-selected: #282832;    /* Seçili durumlar */
+  --bg-active: #1f293d;
+
+  /* Subtle Crisp Borders */
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-focus: rgba(61, 126, 255, 0.6);
+
+  /* Single Accent: CapCut Soft Electric Blue */
+  --accent: #3d7eff;
+  --accent-hover: #5591ff;
+  --accent-dim: rgba(61, 126, 255, 0.14);
+  --accent-glow: rgba(61, 126, 255, 0.25);
+
+  /* Typography */
+  --text-primary: #ededf0;
+  --text-secondary: #92929e;
+  --text-muted: #565662;
+
+  /* Status Colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+}
+
+/* ==========================================================================
+   Light Mode Theme Variables & Component Rules
+   ========================================================================== */
+[data-theme="light"], html.light {
+  /* Light NLE Studio Base Palette */
+  --bg-base: #f1f3f7;        /* Clean studio soft gray */
+  --bg-surface: #ffffff;     /* Crisp white panels and header */
+  --bg-elevated: #f8f9fa;    /* Elevated cards and inspector boxes */
+  --bg-hover: #e9ecef;       /* Hover state */
+  --bg-selected: #e2e8f0;    /* Selected state */
+  --bg-active: #dbeafe;
+
+  /* Subtle Crisp Borders */
+  --border-default: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-focus: rgba(61, 126, 255, 0.6);
+
+  /* Accent */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-dim: rgba(37, 99, 235, 0.1);
+  --accent-glow: rgba(37, 99, 235, 0.2);
+
+  /* Typography */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+}
+
+/* Light Mode Overrides */
+html.light body {
+  background-color: var(--bg-base) !important;
+  color: var(--text-primary) !important;
+}
+
+html.light header {
+  background-color: var(--bg-surface) !important;
+  border-bottom-color: var(--border-default) !important;
+}
+
+html.light .bg-\[\#0c0c0e\],
+html.light .bg-\[\#111114\],
+html.light .bg-\[\#141418\],
+html.light .bg-\[\#0d0d10\],
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900,
+html.light .bg-slate-800 {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.light .bg-\[\#18181c\],
+html.light .bg-slate-850 {
+  background-color: var(--bg-elevated) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.light .glass-panel {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+html.light .glass-card {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+html.light .glass-card:hover {
+  border-color: var(--border-default) !important;
+  background: var(--bg-hover) !important;
+}
+
+html.light .border-white\/10,
+html.light .border-white\/5,
+html.light .border-white\/15,
+html.light .border-white\/20,
+html.light .border-white\/25,
+html.light .border-white\/30 {
+  border-color: var(--border-default) !important;
+}
+
+html.light .text-white,
+html.light .text-slate-100,
+html.light .text-slate-200 {
+  color: var(--text-primary) !important;
+}
+
+html.light .text-slate-300,
+html.light .text-slate-400 {
+  color: var(--text-secondary) !important;
+}
+
+html.light .text-slate-500,
+html.light .text-slate-600 {
+  color: var(--text-muted) !important;
+}
+
+html.light .text-gradient,
+html.light .text-gradient-cyan {
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+html.light .btn-ghost {
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+html.light .btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+html.light input:not([type="range"]):not([type="checkbox"]),
+html.light select,
+html.light textarea {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.light select option {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+html.light kbd {
+  background-color: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.light input[type=range]::-webkit-slider-runnable-track {
+  background: #cbd5e1 !important;
+}
+
+html.light input[type=range]::-moz-range-track {
+  background: #cbd5e1 !important;
+}
+
+html.light input[type=range]::-webkit-slider-thumb {
+  background: var(--accent) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+html.light input[type=range]::-moz-range-thumb {
+  background: var(--accent) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Light Mode Timeline */
+html.light .track-lane-row {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07) !important;
+}
+
+html.light .track-lane-row:nth-child(even) {
+  background-color: #f1f5f9 !important;
+}
+
+html.light #track-headers-container {
+  background-color: #f8fafc !important;
+  border-right-color: var(--border-default) !important;
+}
+
+html.light #track-headers-container > div {
+  background-color: #f8fafc !important;
+  border-bottom-color: rgba(0, 0, 0, 0.07) !important;
+  color: var(--text-primary) !important;
+}
+
+html.light #track-headers-container > div.border-l-2,
+html.light #track-headers-container > div.border-l-\[\#3d7eff\] {
+  background-color: #eff6ff !important;
+  border-left-color: var(--accent) !important;
+}
+
+html.light #timeline-ruler-container,
+html.light #ruler-canvas {
+  background-color: #f8fafc !important;
+  border-bottom-color: var(--border-default) !important;
+}
+
+html.light .timeline-clip-card {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
+html.light .timeline-clip-card:hover {
+  background: #1d4ed8 !important;
+}
+
+html.light .timeline-clip-card.selected {
+  border-color: #1e40af !important;
+  box-shadow: 0 0 0 2px #1e40af, 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+}
+
+html.light .timeline-audio-clip-card {
+  background: #0d9488 !important;
+  border-color: #0f766e !important;
+  color: #ffffff !important;
+}
+
+html.light .timeline-audio-clip-card:hover {
+  background: #0f766e !important;
+}
+
+html.light #timeline-context-menu {
+  background: #ffffff !important;
+  border: 1px solid var(--border-default) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+}
+
+html.light #timeline-context-menu button {
+  color: var(--text-primary) !important;
+}
+
+html.light #timeline-context-menu button:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+html.light .aspect-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+}
+
+html.light .aspect-card:hover {
+  border-color: rgba(0, 0, 0, 0.25) !important;
+}
+
+html.light .aspect-shape {
+  border-color: rgba(0, 0, 0, 0.25) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light ::-webkit-scrollbar-track,
+html.light .custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f3f5 !important;
+}
+
+html.light ::-webkit-scrollbar-thumb,
+html.light .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover,
+html.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-main);
-  color: #f1f5f9;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   overflow-x: hidden;
+  letter-spacing: -0.01em;
 }
 
 .font-mono {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Glassmorphism surfaces */
+/* Surface Cards & Panels */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-subtle);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
 }
 
 .glass-card {
-  background: rgba(26, 38, 64, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .glass-card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--border-default);
 }
 
-/* Glowing accents */
 .glow-accent {
-  box-shadow: 0 0 20px -2px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 16px -2px var(--accent-glow);
 }
 
-.glow-purple {
-  box-shadow: 0 0 25px -4px rgba(168, 85, 247, 0.5);
+.glow-purple, .glow-cyan {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-.glow-cyan {
-  box-shadow: 0 0 25px -4px rgba(6, 182, 212, 0.5);
-}
-
-.text-gradient {
-  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 50%, #c084fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.text-gradient-cyan {
-  background: linear-gradient(135deg, #67e8f9 0%, #06b6d4 50%, #3b82f6 100%);
+.text-gradient, .text-gradient-cyan {
+  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 /* Dropzone animations */
 .dropzone-active {
-  border-color: #6366f1 !important;
-  background-color: rgba(99, 102, 241, 0.12) !important;
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.35) !important;
+  border-color: var(--accent) !important;
+  background-color: var(--accent-dim) !important;
+  box-shadow: 0 0 24px var(--accent-glow) !important;
+}
+
+/* Professional NLE Buttons */
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.05s;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-ghost.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: var(--color-danger);
 }
 
 /* Custom Scrollbar */
@@ -82,16 +411,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: #09090b;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.4);
-  border-radius: 9999px;
+  background: #27272e;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.7);
+  background: #3f3f4a;
 }
 
 /* Custom Range Slider */
@@ -107,136 +436,328 @@ input[type=range]:focus {
 
 input[type=range]::-webkit-slider-runnable-track {
   width: 100%;
-  height: 6px;
+  height: 4px;
   cursor: pointer;
-  background: #1e293b;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #222228;
+  border-radius: 2px;
 }
 
 input[type=range]::-webkit-slider-thumb {
-  height: 18px;
-  width: 18px;
+  height: 14px;
+  width: 14px;
   border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.8), inset 0 0 2px white;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
   cursor: pointer;
   -webkit-appearance: none;
-  margin-top: -6px;
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  margin-top: -5px;
+  transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
 input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.18);
-  background: #818cf8;
+  transform: scale(1.15);
+  background: var(--accent);
 }
 
 input[type=range]::-moz-range-track {
   width: 100%;
-  height: 6px;
+  height: 4px;
   cursor: pointer;
-  background: #1e293b;
-  border-radius: 9999px;
+  background: #222228;
+  border-radius: 2px;
 }
 
 input[type=range]::-moz-range-thumb {
-  height: 18px;
-  width: 18px;
-  border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.8);
-  cursor: pointer;
-  border: none;
-}
-
-/* Interactive Timeline Trimmer */
-.timeline-container {
-  position: relative;
-  user-select: none;
-  touch-action: none;
-}
-
-.timeline-track {
-  position: relative;
-  height: 38px;
-  background: #0f172a;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-}
-
-.timeline-waveform-bg {
-  position: absolute;
-  inset: 0;
-  opacity: 0.15;
-  background-image: repeating-linear-gradient(
-    90deg,
-    #6366f1,
-    #6366f1 2px,
-    transparent 2px,
-    transparent 6px
-  );
-}
-
-.timeline-active-region {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: rgba(99, 102, 241, 0.28);
-  border-top: 2px solid #6366f1;
-  border-bottom: 2px solid #6366f1;
-  pointer-events: none;
-}
-
-.timeline-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
+  height: 14px;
   width: 14px;
-  cursor: ew-resize;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  cursor: pointer;
+}
+
+/* Video Player container */
+.video-preview-wrapper {
+  background: #000000;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9);
+}
+
+/* Stüdyo Inspector Tabs */
+.inspector-tab-btn {
+  transition: all 0.15s ease;
+  position: relative;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+}
+
+.inspector-tab-btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.inspector-tab-btn.active {
+  color: #ffffff;
+  background: var(--accent-dim);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Aspect Card Selection */
+.aspect-card {
+  transition: all 0.15s ease;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+}
+
+.aspect-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.aspect-card.selected {
+  border-color: var(--accent) !important;
+  background: var(--accent-dim) !important;
+  box-shadow: 0 0 12px -2px var(--accent-glow);
+}
+
+.aspect-shape {
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.aspect-card.selected .aspect-shape {
+  border-color: var(--accent);
+  background: rgba(61, 126, 255, 0.2);
+}
+
+/* ==========================================================================
+   CapCut NLE Multi-Track Timeline Styles (Clean, High-Precision Matte)
+   ========================================================================== */
+
+/* Track Lane Row */
+.track-lane-row {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  background-color: #0e0e11;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.12s ease;
+}
+
+.track-lane-row:nth-child(even) {
+  background-color: #0a0a0d;
+}
+
+.track-lane-row.lane-drop-hover {
+  background-color: rgba(61, 126, 255, 0.18) !important;
+  box-shadow: inset 0 0 0 1px var(--accent) !important;
+}
+
+/* Individual Video Clip on Timeline Track (DaVinci/CapCut Sleek Blue) */
+.timeline-clip-card {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  background: #1c3258;
+  border: 1px solid #2a477a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+  z-index: 10;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.timeline-clip-card:active {
+  cursor: grabbing;
+}
+
+.timeline-clip-card:hover {
+  border-color: #486ca9;
+  background: #233e6b;
+}
+
+.timeline-clip-card.selected {
+  border-color: var(--accent) !important;
+  background: #203c6e !important;
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgba(0, 0, 0, 0.5) !important;
   z-index: 20;
+}
+
+.timeline-clip-card.active-play {
+  border-color: var(--color-success) !important;
+}
+
+/* Audio Track Clip Styling (Matte Petrol) */
+.timeline-audio-clip-card {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  background: #10323d;
+  border: 1px solid #1a4957;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+  z-index: 10;
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.timeline-handle-start {
-  transform: translateX(-50%);
+.timeline-audio-clip-card:active {
+  cursor: grabbing;
 }
 
-.timeline-handle-end {
-  transform: translateX(-50%);
+.timeline-audio-clip-card:hover {
+  border-color: #29687b;
+  background: #153e4c;
 }
 
-.timeline-handle-bar {
+.timeline-audio-clip-card.selected {
+  border-color: var(--accent) !important;
+  background: #184757 !important;
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  z-index: 20;
+}
+
+/* Text / Title Track Clip Styling (Sleek CapCut/Premiere Purple) */
+.timeline-text-clip-card {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  background: #2e1850;
+  border: 1px solid #573199;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+  z-index: 10;
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+
+.timeline-text-clip-card:active {
+  cursor: grabbing;
+}
+
+.timeline-text-clip-card:hover {
+  border-color: #8b5cf6;
+  background: #3f2470;
+}
+
+.timeline-text-clip-card.selected {
+  border-color: #c084fc !important;
+  background: #4c2b87 !important;
+  box-shadow: 0 0 0 1.5px #c084fc, 0 4px 14px rgba(168, 85, 247, 0.5) !important;
+  z-index: 20;
+}
+
+.timeline-text-clip-card.active-play {
+  border-color: var(--color-success) !important;
+}
+
+html.light .timeline-text-clip-card {
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  color: #5b21b6;
+}
+
+html.light .timeline-text-clip-card:hover {
+  background: #ddd6fe;
+  border-color: #a78bfa;
+}
+
+html.light .timeline-text-clip-card.selected {
+  border-color: #7c3aed !important;
+  background: #ddd6fe !important;
+  box-shadow: 0 0 0 1.5px #7c3aed !important;
+}
+
+/* Active Dragging Ghost State */
+.timeline-clip-card.is-dragging,
+.timeline-audio-clip-card.is-dragging,
+.timeline-text-clip-card.is-dragging {
+  opacity: 0.88 !important;
+  z-index: 60 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--accent) !important;
+  cursor: grabbing !important;
+}
+
+/* Clip Trim Handles on Left and Right Edges */
+.clip-trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   width: 10px;
-  height: 100%;
-  background: #6366f1;
-  border-radius: 4px;
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.7);
+  z-index: 25;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  cursor: col-resize;
+  opacity: 0.6;
+  background: rgba(0, 0, 0, 0.35);
+  transition: opacity 0.12s, background-color 0.12s;
 }
 
-.timeline-handle-bar::before,
-.timeline-handle-bar::after {
+.timeline-clip-card:hover .clip-trim-handle,
+.timeline-clip-card.selected .clip-trim-handle,
+.timeline-audio-clip-card:hover .clip-trim-handle,
+.timeline-audio-clip-card.selected .clip-trim-handle,
+.timeline-text-clip-card:hover .clip-trim-handle,
+.timeline-text-clip-card.selected .clip-trim-handle {
+  opacity: 0.9;
+}
+
+.clip-trim-handle:hover {
+  opacity: 1 !important;
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+.clip-trim-handle-left {
+  left: 0;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.clip-trim-handle-right {
+  right: 0;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.clip-trim-handle::after {
   content: '';
   width: 2px;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.8);
+  height: 14px;
+  background: #ffffff;
   border-radius: 1px;
 }
 
+/* Playhead */
 .timeline-playhead {
   position: absolute;
   top: -4px;
   bottom: -4px;
-  width: 2px;
-  background: #f43f5e;
-  box-shadow: 0 0 8px #f43f5e;
+  width: 1.5px;
+  background: #ef4444;
   z-index: 30;
   pointer-events: none;
   transform: translateX(-50%);
@@ -251,393 +772,25 @@ input[type=range]::-moz-range-thumb {
   transform: translateX(-50%);
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 6px solid #f43f5e;
+  border-top: 6px solid #ef4444;
 }
 
-/* Aspect Card Selection */
-.aspect-card {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-}
-
-.aspect-card.selected {
-  border-color: #6366f1 !important;
-  background: rgba(99, 102, 241, 0.16) !important;
-  box-shadow: 0 0 16px -2px rgba(99, 102, 241, 0.4);
-}
-
-.aspect-shape {
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.05);
-  transition: border-color 0.2s;
-}
-
-.aspect-card.selected .aspect-shape {
-  border-color: #818cf8;
-  background: rgba(99, 102, 241, 0.25);
-}
-
-/* Progress bar animated gradient */
-.progress-animated {
-  background-size: 200% 100%;
-  background-image: linear-gradient(
-    90deg,
-    #6366f1 0%,
-    #a855f7 50%,
-    #06b6d4 100%
-  );
-  animation: shimmer 2s linear infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* Pulse glow animation */
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 0.8;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.03);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
-}
-
-/* Video Player container */
-.video-preview-wrapper {
-  background: #020617;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
-}
-
-/* Stüdyo Inspector Tabs */
-.inspector-tab-btn {
-  transition: all 0.2s ease;
-  position: relative;
-  font-weight: 500;
-  color: #94a3b8;
-}
-
-.inspector-tab-btn:hover {
-  color: #f1f5f9;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.inspector-tab-btn.active {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
-  border-bottom: 2px solid #38bdf8;
-  font-weight: 600;
-}
-
-/* Live Summary Bar */
-.live-summary-bar {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
-}
-
-.live-summary-chip {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Cut-out regions on timeline */
-.timeline-cut-marker {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(244, 63, 94, 0.35),
-    rgba(244, 63, 94, 0.35) 6px,
-    rgba(225, 29, 72, 0.6) 6px,
-    rgba(225, 29, 72, 0.6) 12px
-  );
-  border-left: 1.5px solid #f43f5e;
-  border-right: 1.5px solid #f43f5e;
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.cut-badge {
-  transition: all 0.2s ease;
-}
-.cut-badge:hover {
-  transform: translateY(-1px);
-}
-
-/* NLE Timeline Multi-Clip Segment Styling */
-.timeline-clip-block {
-  position: relative;
-  height: 36px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
-  border: 1.5px solid rgba(99, 102, 241, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-  user-select: none;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.timeline-clip-block:hover {
-  border-color: rgba(99, 102, 241, 0.6);
-  background: linear-gradient(135deg, rgba(30, 41, 59, 1), rgba(23, 37, 84, 0.6));
-  transform: translateY(-1px);
-}
-
-.timeline-clip-block.selected {
-  border-color: #6366f1 !important;
-  background: linear-gradient(135deg, rgba(67, 56, 202, 0.4), rgba(30, 41, 59, 0.95)) !important;
-  box-shadow: 0 0 16px -2px rgba(99, 102, 241, 0.6), inset 0 0 0 1px rgba(165, 180, 252, 0.4);
-}
-
-.timeline-clip-block.active-play {
-  border-color: #10b981 !important;
-  box-shadow: 0 0 12px -2px rgba(16, 185, 129, 0.5);
-}
-
-.timeline-gap-block {
-  position: relative;
-  height: 36px;
-  border-radius: 8px;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(244, 63, 94, 0.15),
-    rgba(244, 63, 94, 0.15) 6px,
-    rgba(225, 29, 72, 0.3) 6px,
-    rgba(225, 29, 72, 0.3) 12px
-  );
-  border: 1px dashed rgba(244, 63, 94, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  color: #fda4af;
-  font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  pointer-events: none;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-/* ==========================================================================
-   CapCut NLE Multi-Track Timeline Styles (High-Contrast Vibrant Theme)
-   ========================================================================== */
-
-/* Track Lane Row (Distinct Slate Background, Crisp Borders, Visible Grid) */
-.track-lane-row {
-  position: relative;
-  width: 100%;
-  height: 46px;
-  background-color: #0b1120;
-  border-bottom: 1px solid #1e293b;
-  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 50px 100%;
-  overflow: visible;
-  display: flex;
-  align-items: center;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.track-lane-row:nth-child(even) {
-  background-color: #0e1628;
-}
-
-.track-lane-row.lane-drop-hover {
-  background-color: rgba(99, 102, 241, 0.3) !important;
-  box-shadow: inset 0 0 0 2px #818cf8, 0 0 16px rgba(99, 102, 241, 0.4) !important;
-}
-
-/* Individual Video Clip on Timeline Track */
-.timeline-clip-card {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  border-radius: 7px;
-  background: linear-gradient(180deg, #4f46e5 0%, #3730a3 100%);
-  border: 1.5px solid #818cf8;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  cursor: grab;
-  user-select: none;
-  overflow: hidden;
-  z-index: 10;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-}
-
-.timeline-clip-card:active {
-  cursor: grabbing;
-}
-
-.timeline-clip-card:hover {
-  border-color: #a5b4fc;
-  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.timeline-clip-card.selected {
-  border-color: #38bdf8 !important;
-  background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%) !important;
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.8), inset 0 0 0 1.5px rgba(255, 255, 255, 0.7) !important;
-  z-index: 20;
-}
-
-.timeline-clip-card.active-play {
-  border-color: #10b981 !important;
-  box-shadow: 0 0 14px rgba(16, 185, 129, 0.7) !important;
-}
-
-/* Active Dragging Ghost State (Video & Audio) */
-.timeline-clip-card.is-dragging,
-.timeline-audio-clip-card.is-dragging {
-  opacity: 0.92 !important;
-  transform: scale(1.02);
-  z-index: 60 !important;
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(99, 102, 241, 0.9) !important;
-  cursor: grabbing !important;
-}
-
-/* Clip Trim Handles on Left and Right Edges */
-.clip-trim-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 12px;
-  z-index: 25;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: col-resize;
-  opacity: 0.75;
-  background: rgba(0, 0, 0, 0.25);
-  transition: opacity 0.15s, background-color 0.15s;
-}
-
-.timeline-clip-card:hover .clip-trim-handle,
-.timeline-clip-card.selected .clip-trim-handle,
-.timeline-audio-clip-card:hover .clip-trim-handle,
-.timeline-audio-clip-card.selected .clip-trim-handle {
-  opacity: 0.95;
-}
-
-.clip-trim-handle:hover {
-  opacity: 1 !important;
-  background: rgba(255, 255, 255, 0.35) !important;
-}
-
-.clip-trim-handle-left {
-  left: 0;
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-}
-
-.clip-trim-handle-right {
-  right: 0;
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-.clip-trim-handle::after {
-  content: '';
-  width: 2.5px;
-  height: 16px;
-  background: #ffffff;
-  border-radius: 2px;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
-}
-
-/* Audio Track Clip Styling */
-.timeline-audio-clip-card {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  border-radius: 7px;
-  background: linear-gradient(180deg, #0891b2 0%, #0e7490 100%);
-  border: 1.5px solid #22d3ee;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  cursor: grab;
-  user-select: none;
-  overflow: hidden;
-  z-index: 10;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-}
-
-.timeline-audio-clip-card:active {
-  cursor: grabbing;
-}
-
-.timeline-audio-clip-card:hover {
-  border-color: #67e8f9;
-  box-shadow: 0 4px 18px rgba(6, 182, 212, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.timeline-audio-clip-card.selected {
-  border-color: #38bdf8 !important;
-  background: linear-gradient(180deg, #06b6d4 0%, #0891b2 100%) !important;
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.8), inset 0 0 0 1.5px rgba(255, 255, 255, 0.7) !important;
-  z-index: 20;
-}
-
-#capcut-timeline-studio {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box;
-}
-
-/* NLE Context Menu & Playhead Scrubbing Enhancements */
+/* NLE Context Menu */
 #timeline-context-menu {
   z-index: 100 !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  background: rgba(15, 23, 42, 0.96) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-default);
+  background: #141418 !important;
 }
 
-#timeline-playhead-head:hover {
-  box-shadow: 0 0 14px #f43f5e, 0 0 24px #f43f5e;
-}
-
-.scrubbing-active {
-  cursor: ew-resize !important;
-  user-select: none !important;
-}
-
-.scrubbing-active #timeline-playhead-line {
-  transition: none !important;
-}
-
-/* CapCut Dual-Wing Range Trimmer */
+/* Dual-Wing Range Trimmer */
 .playhead-wing {
   user-select: none;
   touch-action: none;
   z-index: 45;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .playhead-wing:hover {
-  filter: drop-shadow(0 0 6px #f59e0b);
+  filter: drop-shadow(0 0 4px var(--accent));
 }
 
 #timeline-range-overlay {
@@ -645,47 +798,23 @@ input[type=range]::-moz-range-thumb {
 }
 
 #timeline-range-toolbar {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(99, 102, 241, 0.35);
-  animation: rangeToolbarFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes rangeToolbarFadeIn {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 6px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-}
-
-#range-handle-in, #range-handle-out {
-  touch-action: none;
-  user-select: none;
-  transition: background-color 0.15s, transform 0.15s;
-}
-
-#range-handle-in:hover, #range-handle-out:hover {
-  box-shadow: 0 0 10px #818cf8;
-  transform: scaleY(1.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border-default);
 }
 
 /* Custom Scrollbar for Inspector and Studio */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
-  border-radius: 8px;
+  background: #0d0d10;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.35);
-  border-radius: 8px;
+  background: #2a2a32;
+  border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.65);
+  background: #40404c;
 }
 
 /* Accordion Header & Chevron transitions */
@@ -693,5 +822,20 @@ input[type=range]::-moz-range-thumb {
   user-select: none;
 }
 .accordion-chevron {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Color Harmonization (Maps legacy Tailwind utilities to unified CapCut palette) */
+.text-indigo-400, .text-indigo-300, .text-cyan-400, .text-cyan-300 {
+  color: var(--accent) !important;
+}
+.bg-indigo-600, .bg-indigo-500 {
+  background-color: var(--accent) !important;
+}
+.hover\:bg-indigo-500:hover, .hover\:bg-indigo-600:hover {
+  background-color: var(--accent-hover) !important;
+}
+.border-indigo-500, .border-indigo-400 {
+  border-color: var(--accent) !important;
+}
+

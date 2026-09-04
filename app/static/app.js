@@ -16,10 +16,13 @@
     metadata: null, // MediaMetadata from API
     duration: 0, // Video duration in seconds
     originalSize: 0, // In bytes
+    theme: localStorage.getItem('koala_theme') || 'dark',
+    previewQuality: localStorage.getItem('koala_preview_quality') || '720p',
 
     // CapCut NLE Multi-Track Timeline
     tracks: [
       { id: 'v1', type: 'video', name: 'V1', visible: true, locked: false, clips: [] },
+      { id: 't1', type: 'text', name: 'T1', visible: true, locked: false, clips: [] },
       { id: 'a1', type: 'audio', name: 'A1', muted: false, locked: false, clips: [] },
     ],
     selectedClipId: null,
@@ -71,6 +74,14 @@
       srt_file_path: null,
       burn_subtitles: false,
     },
+    subtitleStyle: {
+      preset: 'box',
+      font: 'Arial',
+      fontSize: 22,
+      color: '#ffffff',
+      position: 'bottom',
+    },
+    textOverlays: [],
     lastSilenceResult: null,
   };
 
@@ -88,6 +99,13 @@
     headerStatusBadge: document.getElementById('header-status-badge'),
     headerFileName: document.getElementById('header-file-name'),
     btnHeaderNew: document.getElementById('btn-header-new'),
+    btnThemeToggle: document.getElementById('btn-theme-toggle'),
+    themeIconSun: document.getElementById('theme-icon-sun'),
+    themeIconMoon: document.getElementById('theme-icon-moon'),
+    btnSaveProject: document.getElementById('btn-save-project'),
+    btnLoadProject: document.getElementById('btn-load-project'),
+    btnHomeLoadProject: document.getElementById('btn-home-load-project'),
+    projectFileInput: document.getElementById('project-file-input'),
 
     // Upload Elements
     dropZone: document.getElementById('drop-zone'),
@@ -118,6 +136,8 @@
     btnPlayerMute: document.getElementById('btn-player-mute'),
     playerVolumeIcon: document.getElementById('player-volume-icon'),
     btnPlayerFs: document.getElementById('btn-player-fs'),
+    selectPreviewQuality: document.getElementById('select-preview-quality'),
+    proxyLoadingIndicator: document.getElementById('proxy-loading-indicator'),
     aspectGuideOverlay: document.getElementById('aspect-guide-overlay'),
     videoPreviewWrapper: document.getElementById('video-preview-wrapper'),
     overlayVideoPlayer: document.getElementById('overlay-video-player'),
@@ -157,7 +177,11 @@
 
     // Timeline Toolbar Controls
     btnAddVideoTrack: document.getElementById('btn-add-video-track'),
+    btnAddTextTrack: document.getElementById('btn-add-text-track'),
     btnAddAudioTrack: document.getElementById('btn-add-audio-track'),
+    btnImportAudio: document.getElementById('btn-import-audio'),
+    btnTabImportAudio: document.getElementById('btn-tab-import-audio'),
+    audioFileInput: document.getElementById('audio-file-input'),
     btnSplitClip: document.getElementById('btn-split-clip'),
     btnDeleteClip: document.getElementById('btn-delete-clip'),
     btnUndoTimeline: document.getElementById('btn-undo-timeline'),
@@ -222,13 +246,26 @@
     btnResetTransform: document.getElementById('btn-reset-transform'),
     checkClipDenoise: document.getElementById('check-clip-denoise'),
     denoiseLevelContainer: document.getElementById('denoise-level-container'),
+    sliderClipOpacity: document.getElementById('slider-clip-opacity'),
+    inspectorOpacityBadge: document.getElementById('inspector-opacity-badge'),
     checkClipLoudnorm: document.getElementById('check-clip-loudnorm'),
+    loudnormPresetContainer: document.getElementById('loudnorm-preset-container'),
     checkGlobalLoudnorm: document.getElementById('check-global-loudnorm'),
+    btnShortcutsOk: document.getElementById('btn-shortcuts-ok'),
     // AI Suite: RNNoise Neural Voice Isolation
     checkClipRnnoise: document.getElementById('check-clip-rnnoise'),
     rnnoiseMixContainer: document.getElementById('rnnoise-mix-container'),
     sliderClipRnnoiseMix: document.getElementById('slider-clip-rnnoise-mix'),
     rnnoiseMixBadge: document.getElementById('rnnoise-mix-badge'),
+
+    // Live Web Audio Preview FX & A/B Controls
+    btnAudioAbToggle: document.getElementById('btn-audio-ab-toggle'),
+    labelAudioAb: document.getElementById('label-audio-ab'),
+    previewVuMeter: document.getElementById('preview-vu-meter'),
+    vuMeterBar: document.getElementById('vu-meter-bar'),
+    badgeAudioFx: document.getElementById('badge-audio-fx'),
+    btnInspectorAudioAb: document.getElementById('btn-inspector-audio-ab'),
+    inspectorAudioFxSummary: document.getElementById('inspector-audio-fx-summary'),
 
     // AI Suite: Smart Silence Removal (Auto Jump Cut)
     btnSmartSilence: document.getElementById('btn-smart-silence'),
@@ -260,6 +297,23 @@
     btnDownloadSrt: document.getElementById('btn-download-srt'),
     btnDownloadVtt: document.getElementById('btn-download-vtt'),
     subtitleItemsList: document.getElementById('subtitle-items-list'),
+
+    // Subtitle Typography & Styling
+    subtitlePresetsGrid: document.getElementById('subtitle-presets-grid'),
+    subtitlePresetBadge: document.getElementById('subtitle-preset-badge'),
+    subtitleFontFamily: document.getElementById('subtitle-font-family'),
+    subtitleFontSize: document.getElementById('subtitle-font-size'),
+    subtitleSizeVal: document.getElementById('subtitle-size-val'),
+    subtitleColorPicker: document.getElementById('subtitle-color-picker'),
+    subtitlePositionGroup: document.getElementById('subtitle-position-group'),
+
+    // Custom Text Overlays
+    tabNavText: document.getElementById('tab-nav-text'),
+    tabPanelText: document.getElementById('tab-panel-text'),
+    btnAddTextOverlay: document.getElementById('btn-add-text-overlay'),
+    textOverlaysList: document.getElementById('text-overlays-list'),
+    textOverlaysEmpty: document.getElementById('text-overlays-empty'),
+    playerTextOverlaysContainer: document.getElementById('player-text-overlays-container'),
 
     // Aspect & Fit
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
@@ -433,6 +487,7 @@
       dom.viewUpload.classList.remove('hidden');
       dom.headerStatusBadge.classList.add('hidden');
       dom.btnHeaderNew.classList.add('hidden');
+      if (dom.btnSaveProject) dom.btnSaveProject.classList.add('hidden');
       dom.uploadProgressCard.classList.add('hidden');
       dom.uploadProgressBar.style.width = '0%';
       dom.videoPlayer.pause();
@@ -442,6 +497,7 @@
       dom.headerStatusBadge.classList.remove('hidden');
       dom.headerFileName.textContent = state.filename;
       dom.btnHeaderNew.classList.remove('hidden');
+      if (dom.btnSaveProject) dom.btnSaveProject.classList.remove('hidden');
       updateExportSummary();
       updateSavingsEstimate();
     } else if (targetView === 'progress') {
@@ -603,6 +659,19 @@
       state.startTime = 0;
       state.endTime = state.duration;
 
+      // Reset AI Subtitles & Silence results for the new media
+      state.subtitles = null;
+      state.lastSilenceResult = null;
+      if (dom.playerSubtitleOverlay) {
+        dom.playerSubtitleOverlay.classList.add('hidden');
+      }
+      if (dom.subtitleResultsContainer) {
+        dom.subtitleResultsContainer.classList.add('hidden');
+      }
+      if (dom.subtitleItemsList) {
+        dom.subtitleItemsList.innerHTML = '';
+      }
+
       // Display metadata bar
       if (dom.metaFilename) {
         dom.metaFilename.textContent = state.filename;
@@ -622,14 +691,14 @@
       if (dom.metaSize) dom.metaSize.textContent = formatBytes(state.originalSize);
 
       // Setup Video Player Stream with automatic browser-compatible preview
-      const streamUrl = payload.preview_url || `/api/preview/${state.fileId}`;
+      const streamUrl = getPreviewStreamUrl(state.fileId, state.previewQuality);
       dom.videoPlayer.src = streamUrl;
       dom.videoPlayer.load();
 
       // Automatic fallback if browser hardware decoder struggles with format
       dom.videoPlayer.onerror = () => {
-        console.warn('Video element reported playback error, falling back to guaranteed H.264 preview proxy...');
-        const fallbackUrl = `/api/preview/${state.fileId}`;
+        console.warn('Video element reported playback error, falling back to guaranteed 480p preview proxy...');
+        const fallbackUrl = `/api/preview/${state.fileId}?quality=480p`;
         if (!dom.videoPlayer.src.includes(fallbackUrl)) {
           dom.videoPlayer.src = fallbackUrl;
           dom.videoPlayer.load();
@@ -794,51 +863,40 @@
 
   function getActiveVideoLayersAtTime(t) {
     const videoTracks = state.tracks
-      .filter((trk) => trk.type === 'video' && trk.visible !== false);
-    
-    let base = null;
-    let overlay = null;
-
-    // V1 is primary base track
-    const v1 = videoTracks.find((trk) => trk.id === 'v1');
-    if (v1) {
-      for (const clip of v1.clips || []) {
-        const s = clip.timeline_start || 0;
-        const d = getClipDuration(clip);
-        if (t >= s && t < s + d) {
-          base = { clip, track: v1, clipStart: s, clipDur: d };
-          break;
-        }
-      }
-    }
-
-    // Other video tracks (v2, v3, etc.) are overlay tracks
-    const otherTracks = videoTracks
-      .filter((trk) => trk.id !== 'v1')
+      .filter((trk) => trk.type === 'video' && trk.visible !== false)
+      .slice()
       .sort((a, b) => {
+        // En düşük kanal numarası (V1, V2...) en altta, yüksek olan üstte
         const numA = parseInt(a.id.replace(/\D/g, '') || '0', 10);
         const numB = parseInt(b.id.replace(/\D/g, '') || '0', 10);
-        return numB - numA;
+        return numA - numB;
       });
 
-    for (const trk of otherTracks) {
+    const activeLayers = [];
+    for (const trk of videoTracks) {
       for (const clip of trk.clips || []) {
         const s = clip.timeline_start || 0;
         const d = getClipDuration(clip);
         if (t >= s && t < s + d) {
-          overlay = { clip, track: trk, clipStart: s, clipDur: d };
+          activeLayers.push({ clip, track: trk, clipStart: s, clipDur: d });
           break;
         }
       }
-      if (overlay) break;
     }
 
-    if (!base && overlay) {
-      base = overlay;
-      overlay = null;
+    if (activeLayers.length === 0) {
+      return { base: null, overlay: null };
+    }
+    if (activeLayers.length === 1) {
+      return { base: activeLayers[0], overlay: null };
     }
 
-    return { base, overlay };
+    // Birden fazla video katmanı çakıştığında:
+    // Alttaki kanal = base, üstteki kanal = overlay (PIP)
+    return {
+      base: activeLayers[0],
+      overlay: activeLayers[activeLayers.length - 1],
+    };
   }
 
   function updateTransformGizmoUI() {
@@ -898,6 +956,7 @@
       dom.playerCurrentTime.textContent = formatTime(state.playheadTime);
     }
     updateLiveSubtitleOverlay(state.playheadTime);
+    updateLiveTextOverlays(state.playheadTime);
 
     const { base, overlay } = getActiveVideoLayersAtTime(state.playheadTime);
     let activeVideoClipId = null;
@@ -914,6 +973,7 @@
 
       dom.videoPlayer.muted = track.muted || false;
       dom.videoPlayer.volume = Math.max(0, Math.min(1, clip.volume !== undefined ? clip.volume : 1.0));
+      updateAudioPreviewFx(clip, track.muted);
 
       // Apply Base Transform if modified
       const bScale = clip.scale !== undefined ? clip.scale : 1.0;
@@ -925,6 +985,7 @@
       } else {
         dom.videoPlayer.style.transform = '';
       }
+      dom.videoPlayer.style.opacity = clip.opacity !== undefined ? clip.opacity : 1.0;
 
       if (currentLoadedFileId !== fileId) {
         currentLoadedFileId = fileId;
@@ -957,6 +1018,8 @@
         dom.videoPlayer.pause();
       }
       dom.videoPlayer.style.transform = '';
+      dom.videoPlayer.style.opacity = '0';
+      updateAudioPreviewFx(null);
     }
 
     // 2. Secondary Overlay Video Player Sync (PIP)
@@ -1019,6 +1082,7 @@
   }
 
   function startTimelinePlayback() {
+    ensureAudioContextActive();
     if (state.playheadTime >= state.duration) {
       state.playheadTime = 0;
     }
@@ -1060,6 +1124,9 @@
     if (!dom.videoPlayer.paused) {
       dom.videoPlayer.pause();
     }
+    if (dom.overlayVideoPlayer && !dom.overlayVideoPlayer.paused) {
+      dom.overlayVideoPlayer.pause();
+    }
     // Pause all background audio players immediately
     backgroundAudioPlayers.forEach((player) => {
       try {
@@ -1072,6 +1139,7 @@
   }
 
   function toggleTimelinePlayback() {
+    ensureAudioContextActive();
     if (state.isPlaying) {
       stopTimelinePlayback();
     } else {
@@ -1080,14 +1148,344 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Web Audio API DSP Engine (Live Preview Audio FX & A/B Processing)
+  // ---------------------------------------------------------------------------
+  const audioEngine = {
+    ctx: null,
+    sourceNode: null,
+    fxInput: null,
+    dryGain: null,
+    wetGain: null,
+    highpassFilter: null,
+    lowpassFilter: null,
+    notch50Filter: null,
+    notch60Filter: null,
+    vocalPresenceFilter: null,
+    vocalNotchFilter: null,
+    loudnormCompressor: null,
+    makeupGain: null,
+    masterGain: null,
+    analyserNode: null,
+    analyserDataArray: null,
+    isBypassed: false, // false = Enhanced (Wet), true = Original (Dry Bypass)
+    isVuRunning: false,
+    currentActiveClip: null,
+  };
+
+  function initWebAudioEngine() {
+    if (audioEngine.ctx) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      audioEngine.ctx = new AudioCtx();
+
+      if (!dom.videoPlayer) return;
+
+      // Single media element source binding
+      audioEngine.sourceNode = audioEngine.ctx.createMediaElementSource(dom.videoPlayer);
+
+      // Routing split: Dry (Bypass) and Wet (Enhanced)
+      audioEngine.dryGain = audioEngine.ctx.createGain();
+      audioEngine.dryGain.gain.value = 0.0;
+
+      audioEngine.fxInput = audioEngine.ctx.createGain();
+      audioEngine.fxInput.gain.value = 1.0;
+
+      // 1. Denoise Filters (Highpass, Lowpass, and Peaking hum notches)
+      audioEngine.highpassFilter = audioEngine.ctx.createBiquadFilter();
+      audioEngine.highpassFilter.type = 'highpass';
+      audioEngine.highpassFilter.frequency.value = 10; // Transparent sub-audible pass-through
+      audioEngine.highpassFilter.Q.value = 0.707;
+
+      audioEngine.lowpassFilter = audioEngine.ctx.createBiquadFilter();
+      audioEngine.lowpassFilter.type = 'lowpass';
+      audioEngine.lowpassFilter.frequency.value = 22050; // Transparent ultrasonic pass-through
+      audioEngine.lowpassFilter.Q.value = 0.707;
+
+      // Peaking notch filters: gain=0 is mathematically 1.0 (pure wire pass-through)
+      audioEngine.notch50Filter = audioEngine.ctx.createBiquadFilter();
+      audioEngine.notch50Filter.type = 'peaking';
+      audioEngine.notch50Filter.frequency.value = 50;
+      audioEngine.notch50Filter.Q.value = 6.0;
+      audioEngine.notch50Filter.gain.value = 0.0;
+
+      audioEngine.notch60Filter = audioEngine.ctx.createBiquadFilter();
+      audioEngine.notch60Filter.type = 'peaking';
+      audioEngine.notch60Filter.frequency.value = 60;
+      audioEngine.notch60Filter.Q.value = 6.0;
+      audioEngine.notch60Filter.gain.value = 0.0;
+
+      // 2. Vocal / RNNoise Presence & Room Boxiness Shaping
+      audioEngine.vocalPresenceFilter = audioEngine.ctx.createBiquadFilter();
+      audioEngine.vocalPresenceFilter.type = 'peaking';
+      audioEngine.vocalPresenceFilter.frequency.value = 2800;
+      audioEngine.vocalPresenceFilter.Q.value = 1.2;
+      audioEngine.vocalPresenceFilter.gain.value = 0.0;
+
+      audioEngine.vocalNotchFilter = audioEngine.ctx.createBiquadFilter();
+      audioEngine.vocalNotchFilter.type = 'peaking';
+      audioEngine.vocalNotchFilter.frequency.value = 350;
+      audioEngine.vocalNotchFilter.Q.value = 1.0;
+      audioEngine.vocalNotchFilter.gain.value = 0.0;
+
+      // 3. Loudnorm Dynamics Compressor & Makeup Gain
+      audioEngine.loudnormCompressor = audioEngine.ctx.createDynamicsCompressor();
+      audioEngine.loudnormCompressor.threshold.value = 0;
+      audioEngine.loudnormCompressor.ratio.value = 1;
+      audioEngine.loudnormCompressor.knee.value = 0;
+      audioEngine.loudnormCompressor.attack.value = 0.003;
+      audioEngine.loudnormCompressor.release.value = 0.25;
+
+      audioEngine.makeupGain = audioEngine.ctx.createGain();
+      audioEngine.makeupGain.gain.value = 1.0;
+
+      audioEngine.wetGain = audioEngine.ctx.createGain();
+      audioEngine.wetGain.gain.value = 1.0;
+
+      // Master output & Analyser
+      audioEngine.masterGain = audioEngine.ctx.createGain();
+      audioEngine.masterGain.gain.value = 1.0;
+
+      audioEngine.analyserNode = audioEngine.ctx.createAnalyser();
+      audioEngine.analyserNode.fftSize = 64;
+      audioEngine.analyserDataArray = new Uint8Array(audioEngine.analyserNode.frequencyBinCount);
+
+      // Connect FX Graph:
+      // Dry path: Source -> Dry -> Master
+      audioEngine.sourceNode.connect(audioEngine.dryGain);
+      audioEngine.dryGain.connect(audioEngine.masterGain);
+
+      // Wet path: Source -> FX Input -> Filters -> Compressor -> Makeup -> Wet -> Master
+      audioEngine.sourceNode.connect(audioEngine.fxInput);
+      audioEngine.fxInput.connect(audioEngine.highpassFilter);
+      audioEngine.highpassFilter.connect(audioEngine.lowpassFilter);
+      audioEngine.lowpassFilter.connect(audioEngine.notch50Filter);
+      audioEngine.notch50Filter.connect(audioEngine.notch60Filter);
+      audioEngine.notch60Filter.connect(audioEngine.vocalNotchFilter);
+      audioEngine.vocalNotchFilter.connect(audioEngine.vocalPresenceFilter);
+      audioEngine.vocalPresenceFilter.connect(audioEngine.loudnormCompressor);
+      audioEngine.loudnormCompressor.connect(audioEngine.makeupGain);
+      audioEngine.makeupGain.connect(audioEngine.wetGain);
+      audioEngine.wetGain.connect(audioEngine.masterGain);
+
+      // Output to speakers and analyser simultaneously
+      audioEngine.masterGain.connect(audioEngine.ctx.destination);
+      audioEngine.masterGain.connect(audioEngine.analyserNode);
+
+      startVuMeterLoop();
+    } catch (err) {
+      console.warn('Web Audio initialization error:', err);
+    }
+  }
+
+  function ensureAudioContextActive() {
+    if (!audioEngine.ctx) {
+      initWebAudioEngine();
+    }
+    if (audioEngine.ctx && audioEngine.ctx.state !== 'running') {
+      audioEngine.ctx.resume().catch(() => {});
+    }
+  }
+
+  function updateAudioPreviewFx(clip, isMuted) {
+    if (!audioEngine.ctx) {
+      initWebAudioEngine();
+    }
+    if (!audioEngine.ctx) return;
+
+    audioEngine.currentActiveClip = clip;
+    const now = audioEngine.ctx.currentTime || 0;
+
+    try {
+      // 1. Denoise BiquadFilters
+      if (clip && clip.denoise) {
+        const lvl = clip.denoise_level || 'medium';
+        const hpFreq = lvl === 'high' ? 180 : lvl === 'low' ? 80 : 120;
+        const lpFreq = lvl === 'high' ? 5500 : lvl === 'low' ? 9000 : 7500;
+        audioEngine.highpassFilter.frequency.setValueAtTime(hpFreq, now);
+        audioEngine.highpassFilter.Q.setValueAtTime(0.707, now);
+        audioEngine.lowpassFilter.frequency.setValueAtTime(lpFreq, now);
+        audioEngine.lowpassFilter.Q.setValueAtTime(0.707, now);
+        audioEngine.notch50Filter.gain.setValueAtTime(-24.0, now);
+        audioEngine.notch60Filter.gain.setValueAtTime(-24.0, now);
+      } else {
+        audioEngine.highpassFilter.frequency.setValueAtTime(10, now);
+        audioEngine.highpassFilter.Q.setValueAtTime(0.707, now);
+        audioEngine.lowpassFilter.frequency.setValueAtTime(22050, now);
+        audioEngine.lowpassFilter.Q.setValueAtTime(0.707, now);
+        audioEngine.notch50Filter.gain.setValueAtTime(0.0, now);
+        audioEngine.notch60Filter.gain.setValueAtTime(0.0, now);
+      }
+
+      // 2. Vocal Isolation / RNNoise Presence Shaping
+      if (clip && clip.neural_voice_isolation) {
+        const mix = clip.voice_isolation_mix !== undefined ? clip.voice_isolation_mix : 1.0;
+        audioEngine.vocalPresenceFilter.gain.setValueAtTime(4.0 * mix, now);
+        audioEngine.vocalNotchFilter.gain.setValueAtTime(-3.5 * mix, now);
+      } else {
+        audioEngine.vocalPresenceFilter.gain.setValueAtTime(0.0, now);
+        audioEngine.vocalNotchFilter.gain.setValueAtTime(0.0, now);
+      }
+
+      // 3. Loudnorm / LUFS Dynamics Compression
+      if (clip && clip.normalize_audio) {
+        const lufs = clip.target_lufs !== undefined ? clip.target_lufs : -14.0;
+        if (lufs >= -14.5) {
+          audioEngine.loudnormCompressor.threshold.setValueAtTime(-16.0, now);
+          audioEngine.loudnormCompressor.ratio.setValueAtTime(4.0, now);
+          audioEngine.loudnormCompressor.knee.setValueAtTime(10.0, now);
+          audioEngine.makeupGain.gain.setValueAtTime(1.35, now);
+        } else if (lufs >= -19.5) {
+          audioEngine.loudnormCompressor.threshold.setValueAtTime(-18.0, now);
+          audioEngine.loudnormCompressor.ratio.setValueAtTime(3.5, now);
+          audioEngine.loudnormCompressor.knee.setValueAtTime(8.0, now);
+          audioEngine.makeupGain.gain.setValueAtTime(1.20, now);
+        } else {
+          audioEngine.loudnormCompressor.threshold.setValueAtTime(-24.0, now);
+          audioEngine.loudnormCompressor.ratio.setValueAtTime(2.5, now);
+          audioEngine.loudnormCompressor.knee.setValueAtTime(6.0, now);
+          audioEngine.makeupGain.gain.setValueAtTime(1.0, now);
+        }
+      } else {
+        audioEngine.loudnormCompressor.threshold.setValueAtTime(0.0, now);
+        audioEngine.loudnormCompressor.ratio.setValueAtTime(1.0, now);
+        audioEngine.makeupGain.gain.setValueAtTime(1.0, now);
+      }
+
+      // 4. Master Volume & Muting
+      const effectiveMuted = isMuted !== undefined ? isMuted : (dom.videoPlayer ? dom.videoPlayer.muted : false);
+      const vol = effectiveMuted ? 0.0 : Math.max(0, Math.min(1, clip && clip.volume !== undefined ? clip.volume : 1.0));
+      audioEngine.masterGain.gain.setValueAtTime(vol, now);
+
+      // 5. Dry / Wet Routing
+      if (audioEngine.isBypassed) {
+        audioEngine.dryGain.gain.setValueAtTime(1.0, now);
+        audioEngine.wetGain.gain.setValueAtTime(0.0, now);
+      } else {
+        audioEngine.dryGain.gain.setValueAtTime(0.0, now);
+        audioEngine.wetGain.gain.setValueAtTime(1.0, now);
+      }
+
+      // Update UI Indicators
+      updateAudioFxUiIndicators(clip);
+    } catch (err) {
+      console.warn('Error applying Web Audio preview FX:', err);
+    }
+  }
+
+  function updateAudioFxUiIndicators(clip) {
+    if (!dom.labelAudioAb) return;
+
+    if (audioEngine.isBypassed) {
+      dom.labelAudioAb.textContent = 'A/B: Orijinal (Bypass)';
+      if (dom.btnAudioAbToggle) {
+        dom.btnAudioAbToggle.className = 'flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] font-mono text-amber-300 transition-colors cursor-pointer select-none';
+      }
+      if (dom.badgeAudioFx) {
+        dom.badgeAudioFx.textContent = 'BYPASS';
+        dom.badgeAudioFx.className = 'text-[9px] font-mono px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+      }
+      if (dom.inspectorAudioFxSummary) {
+        dom.inspectorAudioFxSummary.textContent = 'Bypass: Orijinal ham ses dinleniyor';
+      }
+      return;
+    }
+
+    // Enhanced Mode
+    dom.labelAudioAb.textContent = 'A/B: İyileştirilmiş';
+    if (dom.btnAudioAbToggle) {
+      dom.btnAudioAbToggle.className = 'flex items-center gap-1 px-2 py-1 rounded bg-[#18181c] hover:bg-[#222226] border border-white/10 text-[11px] font-mono text-emerald-400 transition-colors cursor-pointer select-none';
+    }
+
+    const activeFx = [];
+    if (clip && clip.denoise) {
+      const lvl = clip.denoise_level === 'high' ? 'Yüksek' : clip.denoise_level === 'low' ? 'Düşük' : 'Orta';
+      activeFx.push(`Denoise (${lvl})`);
+    }
+    if (clip && clip.normalize_audio) {
+      activeFx.push(`${clip.target_lufs || -14} LUFS`);
+    }
+    if (clip && clip.neural_voice_isolation) {
+      const pct = Math.round((clip.voice_isolation_mix !== undefined ? clip.voice_isolation_mix : 1.0) * 100);
+      activeFx.push(`RNNoise (%${pct})`);
+    }
+
+    if (activeFx.length === 0) {
+      if (dom.badgeAudioFx) {
+        dom.badgeAudioFx.textContent = 'FX: KAPALI';
+        dom.badgeAudioFx.className = 'text-[9px] font-mono px-1 rounded bg-slate-800 text-slate-400 border border-white/10';
+      }
+      if (dom.inspectorAudioFxSummary) {
+        dom.inspectorAudioFxSummary.textContent = 'Filtreler kapalı (Düz ses)';
+      }
+    } else {
+      if (dom.badgeAudioFx) {
+        dom.badgeAudioFx.textContent = `FX: ${activeFx.length}`;
+        dom.badgeAudioFx.className = 'text-[9px] font-mono px-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+      }
+      if (dom.inspectorAudioFxSummary) {
+        dom.inspectorAudioFxSummary.textContent = activeFx.join(' • ');
+      }
+    }
+  }
+
+  function toggleAudioAbBypass() {
+    audioEngine.isBypassed = !audioEngine.isBypassed;
+    ensureAudioContextActive();
+    const sel = getSelectedClip();
+    updateAudioPreviewFx(sel ? sel.clip : audioEngine.currentActiveClip);
+
+    if (audioEngine.isBypassed) {
+      showToast('A/B Karşılaştırma: Orijinal Ham Ses (Filtreler Devre Dışı)', 'info');
+    } else {
+      showToast('A/B Karşılaştırma: İyileştirilmiş Ses Aktif 🎧', 'success');
+    }
+  }
+
+  function startVuMeterLoop() {
+    if (audioEngine.isVuRunning) return;
+    audioEngine.isVuRunning = true;
+
+    function drawVu() {
+      if (audioEngine.analyserNode && dom.vuMeterBar) {
+        if (dom.videoPlayer && !dom.videoPlayer.paused && !dom.videoPlayer.muted) {
+          audioEngine.analyserNode.getByteFrequencyData(audioEngine.analyserDataArray);
+          let sum = 0;
+          const count = audioEngine.analyserDataArray.length;
+          for (let i = 0; i < count; i++) {
+            sum += audioEngine.analyserDataArray[i];
+          }
+          const avg = sum / (count || 1);
+          const pct = Math.min(100, Math.round(Math.pow(avg / 128, 0.85) * 100));
+          dom.vuMeterBar.style.width = `${pct}%`;
+        } else {
+          dom.vuMeterBar.style.width = '0%';
+        }
+      }
+      requestAnimationFrame(drawVu);
+    }
+    requestAnimationFrame(drawVu);
+  }
+
+  // ---------------------------------------------------------------------------
   // Video Player Transport Controls
   // ---------------------------------------------------------------------------
   function initPlayerControls() {
-    dom.videoCenterBtn.addEventListener('click', toggleTimelinePlayback);
-    dom.btnPlayPause.addEventListener('click', toggleTimelinePlayback);
-    dom.videoPlayer.addEventListener('click', toggleTimelinePlayback);
+    dom.videoCenterBtn.addEventListener('click', () => {
+      ensureAudioContextActive();
+      toggleTimelinePlayback();
+    });
+    dom.btnPlayPause.addEventListener('click', () => {
+      ensureAudioContextActive();
+      toggleTimelinePlayback();
+    });
+    dom.videoPlayer.addEventListener('click', () => {
+      ensureAudioContextActive();
+      toggleTimelinePlayback();
+    });
 
     dom.videoPlayer.addEventListener('play', () => {
+      ensureAudioContextActive();
       dom.videoCenterBtn.classList.add('opacity-0', 'pointer-events-none');
       dom.transportPlayIcon.setAttribute('data-lucide', 'pause');
       refreshIcons();
@@ -1114,8 +1512,17 @@
         'data-lucide',
         dom.videoPlayer.muted ? 'volume-x' : 'volume-2'
       );
+      updateAudioPreviewFx(audioEngine.currentActiveClip, dom.videoPlayer.muted);
       refreshIcons();
     });
+
+    // A/B Audio Comparison Toggles
+    if (dom.btnAudioAbToggle) {
+      dom.btnAudioAbToggle.addEventListener('click', toggleAudioAbBypass);
+    }
+    if (dom.btnInspectorAudioAb) {
+      dom.btnInspectorAudioAb.addEventListener('click', toggleAudioAbBypass);
+    }
 
     // Fullscreen
     dom.btnPlayerFs.addEventListener('click', () => {
@@ -1124,6 +1531,11 @@
       } else {
         document.exitFullscreen().catch(() => {});
       }
+    });
+
+    // Wake up Web Audio on first user interaction anywhere
+    ['click', 'keydown', 'pointerdown', 'touchstart'].forEach((evtName) => {
+      window.addEventListener(evtName, ensureAudioContextActive, { once: true, passive: true });
     });
   }
 
@@ -1169,6 +1581,23 @@
       get duration() {
         return getClipDuration(this);
       },
+    };
+  }
+
+  function extractClipOpts(clip) {
+    if (!clip) return {};
+    return {
+      denoise: clip.denoise || false,
+      denoise_level: clip.denoise_level || 'medium',
+      normalize_audio: clip.normalize_audio || false,
+      target_lufs: clip.target_lufs || -14.0,
+      scale: clip.scale !== undefined ? clip.scale : 1.0,
+      pos_x: clip.pos_x !== undefined ? clip.pos_x : 0.0,
+      pos_y: clip.pos_y !== undefined ? clip.pos_y : 0.0,
+      rotation: clip.rotation !== undefined ? clip.rotation : 0.0,
+      opacity: clip.opacity !== undefined ? clip.opacity : 1.0,
+      neural_voice_isolation: clip.neural_voice_isolation || false,
+      voice_isolation_mix: clip.voice_isolation_mix !== undefined ? clip.voice_isolation_mix : 1.0,
     };
   }
 
@@ -1290,8 +1719,9 @@
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light' || document.documentElement.classList.contains('light');
+    ctx.fillStyle = isLight ? 'rgba(15, 23, 42, 0.65)' : 'rgba(255, 255, 255, 0.45)';
+    ctx.strokeStyle = isLight ? 'rgba(15, 23, 42, 0.2)' : 'rgba(255, 255, 255, 0.2)';
     ctx.font = '10px "JetBrains Mono", monospace';
     ctx.textBaseline = 'middle';
 
@@ -1339,20 +1769,21 @@
 
     state.tracks.forEach((track) => {
       const isVideo = track.type === 'video';
+      const isText = track.type === 'text';
       const isSelected = state.selectedTrackId === track.id;
-      const isBaseTrack = track.id === 'v1' || track.id === 'a1';
+      const isBaseTrack = track.id === 'v1' || track.id === 'a1' || track.id === 't1';
 
       const headerEl = document.createElement('div');
-      headerEl.className = `h-[46px] px-3 border-b border-slate-800/80 flex items-center justify-between transition-colors ${
+      headerEl.className = `h-[46px] px-3 border-b border-white/5 flex items-center justify-between transition-colors ${
         isSelected
-          ? (isVideo ? 'bg-indigo-950/70 border-l-4 border-l-indigo-500' : 'bg-cyan-950/70 border-l-4 border-l-cyan-500')
-          : 'bg-slate-900/90'
+          ? 'bg-[#18181f] border-l-2 border-l-[#3d7eff]'
+          : 'bg-[#0e0e11]'
       }`;
       headerEl.dataset.trackId = track.id;
 
-      const iconName = isVideo ? 'film' : 'volume-2';
-      const iconColor = isVideo ? 'text-indigo-400' : 'text-cyan-400';
-      const badgeColor = isVideo ? 'text-indigo-300' : 'text-cyan-300';
+      const iconName = isVideo ? 'film' : (isText ? 'type' : 'volume-2');
+      const iconColor = isVideo ? 'text-[#70a5ff]' : (isText ? 'text-indigo-400' : 'text-slate-400');
+      const badgeColor = isVideo ? 'text-[#70a5ff]' : (isText ? 'text-indigo-300' : 'text-slate-300');
 
       headerEl.innerHTML = `
         <div class="flex items-center gap-1.5 min-w-0">
@@ -1361,9 +1792,9 @@
         </div>
         <div class="flex items-center gap-1">
           ${
-            isVideo
+            isVideo || isText
               ? `
-            <button class="btn-track-toggle-vis p-1 rounded hover:bg-white/10 ${track.visible === false ? 'text-slate-600' : 'text-slate-300'}" title="${track.visible === false ? 'İzi Göster' : 'İzi Gizle'}">
+            <button class="btn-track-toggle-vis p-1 rounded hover:bg-white/10 ${track.visible === false ? 'text-slate-600' : (isText ? 'text-indigo-300' : 'text-slate-300')}" title="${track.visible === false ? 'İzi Göster' : 'İzi Gizle'}">
               <i data-lucide="${track.visible === false ? 'eye-off' : 'eye'}" class="w-3.5 h-3.5"></i>
             </button>
           `
@@ -1441,6 +1872,7 @@
 
     state.tracks.forEach((track) => {
       const isVideo = track.type === 'video';
+      const isText = track.type === 'text';
       const laneEl = document.createElement('div');
       laneEl.className = `track-lane-row ${
         track.locked ? 'opacity-60 pointer-events-none' : ''
@@ -1454,6 +1886,8 @@
 
         if (isVideo) {
           clipEl.className = `timeline-clip-card ${isSelected ? 'selected' : ''}`;
+        } else if (isText) {
+          clipEl.className = `timeline-text-clip-card ${isSelected ? 'selected' : ''}`;
         } else {
           clipEl.className = `timeline-audio-clip-card ${isSelected ? 'selected' : ''}`;
         }
@@ -1464,13 +1898,13 @@
         clipEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
 
         const durStr = clipDuration.toFixed(1);
-        const clipTitle = clip.filename ? clip.filename : `${isVideo ? 'Klip' : 'Ses'} ${index + 1}`;
+        const clipTitle = clip.filename ? clip.filename : `${isVideo ? 'Klip' : (isText ? 'Metin' : 'Ses')} ${index + 1}`;
         const speedBadge =
           clip.speed && clip.speed !== 1.0
             ? `<span class="text-[9px] px-1 py-0.2 rounded bg-black/40 text-amber-300 border border-amber-400/40 font-mono font-bold">${clip.speed}x</span>`
             : '';
         const volBadge =
-          !isVideo && clip.volume !== undefined && clip.volume !== 1.0
+          !isVideo && !isText && clip.volume !== undefined && clip.volume !== 1.0
             ? `<span class="text-[9px] px-1 py-0.2 rounded bg-black/40 text-cyan-300 border border-cyan-400/40 font-mono font-bold">%${Math.round(clip.volume * 100)}</span>`
             : '';
 
@@ -1486,6 +1920,19 @@
               <span>${durStr}s</span>
             </div>
             <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Klibin sonunu kırp"></div>
+          `;
+        } else if (isText) {
+          const textPreview = clip.text ? clip.text : clipTitle;
+          clipEl.innerHTML = `
+            <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Metin başlangıcını ayarla"></div>
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none select-none">
+              <i data-lucide="type" class="w-3.5 h-3.5 text-indigo-300 flex-shrink-0 drop-shadow"></i>
+              <span class="text-xs font-bold text-white truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">${textPreview}</span>
+            </div>
+            <div class="flex items-center gap-1 text-[10px] font-mono font-bold text-purple-100 bg-black/40 px-1.5 py-0.5 rounded border border-white/20 pointer-events-none flex-shrink-0 mr-1">
+              <span>${durStr}s</span>
+            </div>
+            <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Metin süresini ayarla"></div>
           `;
         } else {
           clipEl.innerHTML = `
@@ -1555,19 +2002,45 @@
       const dx = e.clientX - startX;
       const dSeconds = dx / state.timelineZoom;
 
-      if (edge === 'left') {
-        const deltaSource = dSeconds * speed;
-        let newIn = Math.max(0, Math.min(origOut - 0.2, origIn + deltaSource));
-        newIn = snapTime(newIn, 0.15);
-        clip.in_point = Math.round(newIn * 100) / 100;
-        clip.timeline_start = Math.max(0, origTimelineStart + (clip.in_point - origIn) / speed);
-        dom.videoPlayer.currentTime = clip.in_point;
-      } else if (edge === 'right') {
-        const deltaSource = dSeconds * speed;
-        let newOut = Math.min(state.duration, Math.max(origIn + 0.2, origOut + deltaSource));
-        newOut = snapTime(newOut, 0.15);
-        clip.out_point = Math.round(newOut * 100) / 100;
-        dom.videoPlayer.currentTime = clip.out_point;
+      if (track.type === 'text') {
+        const origDuration = origOut - origIn;
+        const origEnd = origTimelineStart + origDuration;
+        if (edge === 'left') {
+          let newStart = origTimelineStart + dSeconds;
+          newStart = Math.max(0, Math.min(origEnd - 0.2, newStart));
+          newStart = snapTime(newStart, 0.15);
+          clip.timeline_start = Math.round(newStart * 100) / 100;
+          clip.in_point = 0.0;
+          clip.out_point = Math.round((origEnd - clip.timeline_start) * 100) / 100;
+        } else if (edge === 'right') {
+          let newDur = Math.max(0.2, origDuration + dSeconds);
+          newDur = snapTime(origTimelineStart + newDur, 0.15) - origTimelineStart;
+          newDur = Math.max(0.2, newDur);
+          clip.in_point = 0.0;
+          clip.out_point = Math.round(newDur * 100) / 100;
+        }
+        const overlay = (state.textOverlays || []).find((o) => o.id === clip.id);
+        if (overlay) {
+          overlay.start_time = Math.round(clip.timeline_start * 10) / 10;
+          overlay.end_time = Math.round((clip.timeline_start + getClipDuration(clip)) * 10) / 10;
+          updateTextOverlayInputsFromState(overlay);
+          updateLiveTextOverlays(state.playheadTime);
+        }
+      } else {
+        if (edge === 'left') {
+          const deltaSource = dSeconds * speed;
+          let newIn = Math.max(0, Math.min(origOut - 0.2, origIn + deltaSource));
+          newIn = snapTime(newIn, 0.15);
+          clip.in_point = Math.round(newIn * 100) / 100;
+          clip.timeline_start = Math.max(0, origTimelineStart + (clip.in_point - origIn) / speed);
+          dom.videoPlayer.currentTime = clip.in_point;
+        } else if (edge === 'right') {
+          const deltaSource = dSeconds * speed;
+          let newOut = Math.min(state.duration, Math.max(origIn + 0.2, origOut + deltaSource));
+          newOut = snapTime(newOut, 0.15);
+          clip.out_point = Math.round(newOut * 100) / 100;
+          dom.videoPlayer.currentTime = clip.out_point;
+        }
       }
 
       renderAllTracks();
@@ -1578,7 +2051,7 @@
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      if (state.isRippleEnabled) {
+      if (track.type !== 'text' && state.isRippleEnabled) {
         rippleAlignClips(track);
       }
       renderAllTracks();
@@ -1640,6 +2113,17 @@
         dom.timelineSnapGuide.style.left = `${timeToPx(clip.timeline_start)}px`;
       }
 
+      if (track.type === 'text') {
+        const overlay = (state.textOverlays || []).find((o) => o.id === clip.id);
+        if (overlay) {
+          const dur = getClipDuration(clip);
+          overlay.start_time = Math.round(clip.timeline_start * 10) / 10;
+          overlay.end_time = Math.round((clip.timeline_start + dur) * 10) / 10;
+          updateTextOverlayInputsFromState(overlay);
+          updateLiveTextOverlays(state.playheadTime);
+        }
+      }
+
       // Check vertical track lane under cursor
       const hit = getLaneUnderPointer(e.clientY);
       clearLaneHighlights();
@@ -1670,6 +2154,17 @@
       }
 
       if (hasMoved) {
+        if (track.type === 'text') {
+          const overlay = (state.textOverlays || []).find((o) => o.id === clip.id);
+          if (overlay) {
+            const dur = getClipDuration(clip);
+            overlay.start_time = Math.round(clip.timeline_start * 10) / 10;
+            overlay.end_time = Math.round((clip.timeline_start + dur) * 10) / 10;
+            updateTextOverlayInputsFromState(overlay);
+            updateLiveTextOverlays(state.playheadTime);
+          }
+        }
+
         if (currentTargetTrack && currentTargetTrack.id !== track.id) {
           // Move clip across tracks!
           track.clips = track.clips.filter((c) => c.id !== clip.id);
@@ -1680,7 +2175,7 @@
           showToast(`Klip ${currentTargetTrack.name} kanalına taşındı.`, 'info');
         } else {
           track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
-          if (state.isRippleEnabled) {
+          if (track.type !== 'text' && state.isRippleEnabled) {
             rippleAlignClips(track);
           }
         }
@@ -1737,6 +2232,7 @@
     const speed = targetClip.speed || 1.0;
     const splitOffsetInSource = (cur - targetClip.timeline_start) * speed;
     const splitSourcePoint = Math.round((targetClip.in_point + splitOffsetInSource) * 100) / 100;
+    const clipOpts = extractClipOpts(targetClip);
 
     const clipA = createClip(
       `clip-${++clipCounter}`,
@@ -1747,7 +2243,8 @@
       targetClip.volume,
       targetClip.file_id,
       targetClip.filename,
-      targetClip.preview_url
+      targetClip.preview_url,
+      clipOpts
     );
     const clipB = createClip(
       `clip-${++clipCounter}`,
@@ -1758,7 +2255,8 @@
       targetClip.volume,
       targetClip.file_id,
       targetClip.filename,
-      targetClip.preview_url
+      targetClip.preview_url,
+      clipOpts
     );
 
     track.clips.splice(targetIdx, 1, clipA, clipB);
@@ -1776,6 +2274,23 @@
     if (sel) {
       state.selectedTrackId = sel.track.id;
       syncPreviewToTimeline(sel.clip.timeline_start, false);
+
+      if (sel.track.type === 'text') {
+        activateInspectorTab('text');
+        if (dom.textOverlaysList) {
+          const card = dom.textOverlaysList.querySelector(`[data-overlay-id="${clipId}"]`);
+          if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            card.classList.add('ring-2', 'ring-indigo-500');
+            setTimeout(() => card.classList.remove('ring-2', 'ring-indigo-500'), 1500);
+          }
+        }
+        if (dom.btnDeleteClip) {
+          dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
+        }
+        renderAllTracks();
+        return;
+      }
     }
     if (dom.btnDeleteClip) {
       dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
@@ -1810,12 +2325,19 @@
       if (dom.btnDeleteClip) {
         dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
       }
-      if (state.isRippleEnabled) rippleAlignClips(track);
+
+      if (track.type === 'text') {
+        state.textOverlays = (state.textOverlays || []).filter((o) => o.id !== removed.id);
+        renderTextOverlaysList();
+        updateLiveTextOverlays(state.playheadTime);
+      } else if (state.isRippleEnabled) {
+        rippleAlignClips(track);
+      }
 
       renderAllTracks();
       updateTimelineDurationBadge();
       updateClipInspector();
-      showToast(`Klip silindi (${formatTime(removed.in_point)} - ${formatTime(removed.out_point)}) 🗑️`, 'success');
+      showToast(track.type === 'text' ? 'Metin katmanı silindi 🗑️' : `Klip silindi (${formatTime(removed.in_point)} - ${formatTime(removed.out_point)}) 🗑️`, 'success');
     }
   }
 
@@ -1833,7 +2355,9 @@
       clip.speed,
       clip.volume,
       clip.file_id,
-      clip.filename
+      clip.filename,
+      clip.preview_url,
+      extractClipOpts(clip)
     );
     track.clips.push(newClip);
     track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
@@ -1870,8 +2394,75 @@
     showToast(`Klip ${targetTrack.name} kanalına taşındı.`, 'info');
   }
 
+  function getTextTrack() {
+    let track = state.tracks.find((t) => t.type === 'text');
+    if (!track) {
+      track = { id: 't1', type: 'text', name: 'T1', visible: true, locked: false, clips: [] };
+      const firstAudioIdx = state.tracks.findIndex((t) => t.type === 'audio');
+      if (firstAudioIdx !== -1) {
+        state.tracks.splice(firstAudioIdx, 0, track);
+      } else {
+        state.tracks.push(track);
+      }
+    }
+    return track;
+  }
+
+  function syncTextOverlaysToTrack() {
+    const track = getTextTrack();
+    if (!state.textOverlays) state.textOverlays = [];
+
+    // Filter out clips on text tracks whose overlay was removed
+    const overlayIds = new Set(state.textOverlays.map((o) => o.id));
+    state.tracks.filter((t) => t.type === 'text').forEach((t) => {
+      t.clips = (t.clips || []).filter((c) => overlayIds.has(c.id));
+    });
+
+    // Ensure each overlay has a clip
+    state.textOverlays.forEach((overlay) => {
+      let clip = null;
+      for (const t of state.tracks.filter((t) => t.type === 'text')) {
+        clip = (t.clips || []).find((c) => c.id === overlay.id);
+        if (clip) break;
+      }
+      const dur = Math.max(0.2, overlay.end_time - overlay.start_time);
+      if (!clip) {
+        clip = {
+          id: overlay.id,
+          in_point: 0.0,
+          out_point: Math.round(dur * 100) / 100,
+          timeline_start: Math.round(overlay.start_time * 100) / 100,
+          speed: 1.0,
+          volume: 1.0,
+          file_id: null,
+          filename: overlay.text || 'Metin',
+          text: overlay.text || 'Metin',
+        };
+        track.clips.push(clip);
+      } else {
+        clip.timeline_start = Math.round(overlay.start_time * 100) / 100;
+        clip.in_point = 0.0;
+        clip.out_point = Math.round(dur * 100) / 100;
+        clip.text = overlay.text || 'Metin';
+        clip.filename = overlay.text || 'Metin';
+      }
+    });
+  }
+
+  function updateTextOverlayInputsFromState(overlay) {
+    if (!dom.textOverlaysList) return;
+    const card = dom.textOverlaysList.querySelector(`[data-overlay-id="${overlay.id}"]`);
+    if (!card) return;
+    const startIn = card.querySelector('.input-overlay-start');
+    const endIn = card.querySelector('.input-overlay-end');
+    const badge = card.querySelector('.overlay-timing-badge');
+    if (startIn) startIn.value = overlay.start_time;
+    if (endIn) endIn.value = overlay.end_time;
+    if (badge) badge.textContent = `${formatTime(overlay.start_time)} - ${formatTime(overlay.end_time)}`;
+  }
+
   function addTrack(type) {
-    const prefix = type === 'video' ? 'v' : 'a';
+    const prefix = type === 'video' ? 'v' : (type === 'text' ? 't' : 'a');
     const sameTypeTracks = state.tracks.filter((t) => t.type === type);
     let maxNum = 0;
     sameTypeTracks.forEach((t) => {
@@ -1889,25 +2480,33 @@
       locked: false,
       clips: [],
     };
-    if (type === 'video') newTrack.visible = true;
+    if (type === 'video' || type === 'text') newTrack.visible = true;
     else newTrack.muted = false;
 
     pushTimelineHistory();
     if (type === 'video') {
       const lastVideoIdx = state.tracks.map((t) => t.type).lastIndexOf('video');
       state.tracks.splice(lastVideoIdx + 1, 0, newTrack);
+    } else if (type === 'text') {
+      const firstAudioIdx = state.tracks.findIndex((t) => t.type === 'audio');
+      if (firstAudioIdx !== -1) {
+        state.tracks.splice(firstAudioIdx, 0, newTrack);
+      } else {
+        state.tracks.push(newTrack);
+      }
     } else {
       state.tracks.push(newTrack);
     }
 
     state.selectedTrackId = id;
     renderAllTracks();
-    showToast(`Yeni ${type === 'video' ? 'video' : 'ses'} izi eklendi (${name}) 🎬`, 'success');
+    const typeLabel = type === 'video' ? 'video' : (type === 'text' ? 'metin' : 'ses');
+    showToast(`Yeni ${typeLabel} izi eklendi (${name}) 🎬`, 'success');
   }
 
   function deleteTrack(trackId) {
-    if (trackId === 'v1' || trackId === 'a1') {
-      showToast('Temel izler (V1, A1) silinemez.', 'info');
+    if (trackId === 'v1' || trackId === 'a1' || trackId === 't1') {
+      showToast('Temel izler (V1, A1, T1) silinemez.', 'info');
       return;
     }
     const idx = state.tracks.findIndex((t) => t.id === trackId);
@@ -1931,10 +2530,32 @@
     if (state.duration <= 0) return;
     pushTimelineHistory();
     clipCounter = 1;
+    const streamUrl = dom.videoPlayer?.src || (state.fileId ? `/api/media/${state.fileId}` : null);
     state.tracks = [
-      { id: 'v1', type: 'video', name: 'V1', visible: true, locked: false, clips: [createClip('clip-1', 0.0, state.duration, 0.0, 1.0, 1.0)] },
+      {
+        id: 'v1',
+        type: 'video',
+        name: 'V1',
+        visible: true,
+        locked: false,
+        clips: [
+          createClip(
+            'clip-1',
+            0.0,
+            state.duration,
+            0.0,
+            1.0,
+            1.0,
+            state.fileId,
+            state.filename,
+            streamUrl
+          ),
+        ],
+      },
+      { id: 't1', type: 'text', name: 'T1', visible: true, locked: false, clips: [] },
       { id: 'a1', type: 'audio', name: 'A1', muted: false, locked: false, clips: [] },
     ];
+    syncTextOverlaysToTrack();
     state.selectedClipId = null;
     state.selectedTrackId = 'v1';
     if (dom.btnDeleteClip) {
@@ -1994,6 +2615,11 @@
     if (dom.sliderClipRotation) dom.sliderClipRotation.value = clip.rotation || 0;
     if (dom.inspectorRotationBadge) dom.inspectorRotationBadge.textContent = `${clip.rotation || 0}°`;
 
+    // Opacity field (E-5)
+    const curOpacity = clip.opacity !== undefined ? clip.opacity : 1.0;
+    if (dom.sliderClipOpacity) dom.sliderClipOpacity.value = Math.round(curOpacity * 100);
+    if (dom.inspectorOpacityBadge) dom.inspectorOpacityBadge.textContent = `%${Math.round(curOpacity * 100)}`;
+
     // Audio Suite fields (Phase 2)
     if (dom.checkClipDenoise) dom.checkClipDenoise.checked = !!clip.denoise;
     if (dom.denoiseLevelContainer) {
@@ -2008,6 +2634,17 @@
       }
     });
     if (dom.checkClipLoudnorm) dom.checkClipLoudnorm.checked = !!clip.normalize_audio;
+    if (dom.loudnormPresetContainer) {
+      dom.loudnormPresetContainer.classList.toggle('hidden', !clip.normalize_audio);
+    }
+    const currentTargetLufs = clip.target_lufs !== undefined ? clip.target_lufs : -14.0;
+    document.querySelectorAll('.lufs-preset-btn').forEach((b) => {
+      if (parseFloat(b.dataset.lufs) === currentTargetLufs) {
+        b.className = 'lufs-preset-btn px-1.5 py-1 rounded bg-emerald-600 text-white text-[10px] font-mono cursor-pointer transition-colors';
+      } else {
+        b.className = 'lufs-preset-btn px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer transition-colors';
+      }
+    });
 
     // AI Suite: RNNoise Neural Voice Isolation
     if (dom.checkClipRnnoise) dom.checkClipRnnoise.checked = !!clip.neural_voice_isolation;
@@ -2019,6 +2656,7 @@
     if (dom.rnnoiseMixBadge) dom.rnnoiseMixBadge.textContent = `%${currentRnnoiseMix}${currentRnnoiseMix === 100 ? ' (Tam İzolasyon)' : ''}`;
 
     updateTransformGizmoUI();
+    updateAudioPreviewFx(clip);
   }
 
   function initTransformGizmo() {
@@ -2213,6 +2851,7 @@
         sel.clip.volume = parseInt(e.target.value, 10) / 100;
         if (dom.inspectorVolumeBadge) dom.inspectorVolumeBadge.textContent = `%${e.target.value}`;
         renderTrackLanes();
+        updateAudioPreviewFx(sel.clip);
       });
     }
 
@@ -2221,13 +2860,21 @@
         const sel = getSelectedClip();
         if (!sel) return;
         const val = parseFloat(e.target.value);
-        if (!isNaN(val) && val >= 0 && val < sel.clip.out_point) {
-          sel.clip.in_point = val;
-          if (state.isRippleEnabled) rippleAlignClips(sel.track);
-          renderAllTracks();
-          updateTimelineDurationBadge();
-          updateClipInspector();
+        if (isNaN(val) || val < 0) {
+          showToast('Başlangıç noktası 0 veya pozitif bir sayı olmalıdır.', 'error');
+          dom.inputClipIn.value = sel.clip.in_point.toFixed(1);
+          return;
         }
+        if (val >= sel.clip.out_point - 0.1) {
+          showToast(`Başlangıç zamanı, bitiş zamanından (${sel.clip.out_point.toFixed(1)}s) küçük olmalıdır.`, 'error');
+          dom.inputClipIn.value = sel.clip.in_point.toFixed(1);
+          return;
+        }
+        sel.clip.in_point = Math.round(val * 100) / 100;
+        if (state.isRippleEnabled) rippleAlignClips(sel.track);
+        renderAllTracks();
+        updateTimelineDurationBadge();
+        updateClipInspector();
       });
     }
 
@@ -2236,13 +2883,21 @@
         const sel = getSelectedClip();
         if (!sel) return;
         const val = parseFloat(e.target.value);
-        if (!isNaN(val) && val > sel.clip.in_point && val <= state.duration) {
-          sel.clip.out_point = val;
-          if (state.isRippleEnabled) rippleAlignClips(sel.track);
-          renderAllTracks();
-          updateTimelineDurationBadge();
-          updateClipInspector();
+        if (isNaN(val) || val <= sel.clip.in_point + 0.1) {
+          showToast(`Bitiş zamanı, başlangıç zamanından (${sel.clip.in_point.toFixed(1)}s) büyük olmalıdır.`, 'error');
+          dom.inputClipOut.value = sel.clip.out_point.toFixed(1);
+          return;
         }
+        if (state.duration > 0 && val > state.duration + 0.5) {
+          showToast(`Bitiş zamanı orijinal video süresini (${formatTime(state.duration)}) aşamaz.`, 'error');
+          dom.inputClipOut.value = sel.clip.out_point.toFixed(1);
+          return;
+        }
+        sel.clip.out_point = Math.round(val * 100) / 100;
+        if (state.isRippleEnabled) rippleAlignClips(sel.track);
+        renderAllTracks();
+        updateTimelineDurationBadge();
+        updateClipInspector();
       });
     }
 
@@ -2290,6 +2945,17 @@
       });
     }
 
+    // Opacity Slider (E-5)
+    if (dom.sliderClipOpacity) {
+      dom.sliderClipOpacity.addEventListener('input', (e) => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.opacity = parseInt(e.target.value, 10) / 100;
+        if (dom.inspectorOpacityBadge) dom.inspectorOpacityBadge.textContent = `%${e.target.value}`;
+        syncPreviewToTimeline(state.playheadTime, false);
+      });
+    }
+
     // Quick PIP Presets
     document.querySelectorAll('.pip-preset-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -2325,6 +2991,7 @@
         sel.clip.pos_x = 0;
         sel.clip.pos_y = 0;
         sel.clip.rotation = 0;
+        sel.clip.opacity = 1.0;
         updateClipInspector();
         syncPreviewToTimeline(state.playheadTime, false);
         showToast('Dönüştürme ayarları sıfırlandı 🔄', 'info');
@@ -2340,6 +3007,7 @@
         if (dom.denoiseLevelContainer) {
           dom.denoiseLevelContainer.classList.toggle('hidden', !sel.clip.denoise);
         }
+        updateAudioPreviewFx(sel.clip);
         showToast(sel.clip.denoise ? 'Dip Ses Temizleme aktif edildi 🎙️' : 'Dip Ses Temizleme kapatıldı', 'info');
       });
     }
@@ -2357,18 +3025,40 @@
             b.className = 'denoise-level-btn px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer';
           }
         });
+        updateAudioPreviewFx(sel.clip);
       });
     });
 
-    // Loudnorm Toggle
+    // Loudnorm Toggle & LUFS Presets (E-6)
     if (dom.checkClipLoudnorm) {
       dom.checkClipLoudnorm.addEventListener('change', (e) => {
         const sel = getSelectedClip();
         if (!sel) return;
         sel.clip.normalize_audio = e.target.checked;
-        showToast(sel.clip.normalize_audio ? 'Ses Normalizasyonu (-14 LUFS) aktif 🔊' : 'Ses Normalizasyonu kapatıldı', 'info');
+        if (dom.loudnormPresetContainer) {
+          dom.loudnormPresetContainer.classList.toggle('hidden', !sel.clip.normalize_audio);
+        }
+        updateAudioPreviewFx(sel.clip);
+        showToast(sel.clip.normalize_audio ? `Ses Normalizasyonu (${sel.clip.target_lufs || -14} LUFS) aktif 🔊` : 'Ses Normalizasyonu kapatıldı', 'info');
       });
     }
+
+    document.querySelectorAll('.lufs-preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sel = getSelectedClip();
+        if (!sel) return;
+        sel.clip.target_lufs = parseFloat(btn.dataset.lufs);
+        document.querySelectorAll('.lufs-preset-btn').forEach((b) => {
+          if (b === btn) {
+            b.className = 'lufs-preset-btn px-1.5 py-1 rounded bg-emerald-600 text-white text-[10px] font-mono cursor-pointer transition-colors';
+          } else {
+            b.className = 'lufs-preset-btn px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer transition-colors';
+          }
+        });
+        updateAudioPreviewFx(sel.clip);
+        showToast(`Hedef ses seviyesi: ${sel.clip.target_lufs} LUFS ayarlandı 🎚️`, 'info');
+      });
+    });
 
     // RNNoise Neural Voice Isolation Toggle & Slider
     if (dom.checkClipRnnoise) {
@@ -2379,6 +3069,7 @@
         if (dom.rnnoiseMixContainer) {
           dom.rnnoiseMixContainer.classList.toggle('hidden', !sel.clip.neural_voice_isolation);
         }
+        updateAudioPreviewFx(sel.clip);
         showToast(sel.clip.neural_voice_isolation ? 'RNNoise Yapay Zeka Ses İzolasyonu aktif 🧠' : 'Ses İzolasyonu kapatıldı', 'info');
       });
     }
@@ -2392,6 +3083,7 @@
         if (dom.rnnoiseMixBadge) {
           dom.rnnoiseMixBadge.textContent = `%${val}${val === 100 ? ' (Tam İzolasyon)' : ''}`;
         }
+        updateAudioPreviewFx(sel.clip);
       });
     }
 
@@ -3200,6 +3892,82 @@
     });
   }
 
+  // --- External Audio / Music Import ---
+  async function importAudioFile(file) {
+    if (!file) return;
+
+    // Find or create target audio track
+    let targetTrack = state.tracks.find((t) => t.type === 'audio' && !t.locked);
+    if (!targetTrack) {
+      addTrack('audio');
+      targetTrack = state.tracks.filter((t) => t.type === 'audio').slice(-1)[0];
+    }
+    if (!targetTrack) {
+      showToast('Ses kanalı oluşturulamadı.', 'error');
+      return;
+    }
+
+    showToast(`"${file.name}" yükleniyor ve inceleniyor... ⏳`, 'info');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errRes = await res.json().catch(() => ({ detail: 'Dosya yükleme hatası' }));
+        throw new Error(errRes.detail || 'Ses dosyası yüklenemedi');
+      }
+
+      const data = await res.json();
+      const mediaDuration = (data.metadata && data.metadata.duration) ? data.metadata.duration : 5.0;
+
+      pushTimelineHistory();
+
+      const dropTime = Math.max(0, state.playheadTime || 0);
+      const previewUrl = data.preview_url || `/api/media/${data.file_id}`;
+
+      // Create new clip
+      const newClip = createClip(
+        `clip-${++clipCounter}`,
+        0.0,
+        mediaDuration,
+        dropTime,
+        1.0,
+        1.0,
+        data.file_id,
+        data.filename,
+        previewUrl
+      );
+
+      targetTrack.clips.push(newClip);
+      targetTrack.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+
+      // Adjust project duration if audio clip exceeds current duration
+      const clipEnd = dropTime + mediaDuration;
+      if (clipEnd > state.duration) {
+        state.duration = Math.ceil(clipEnd);
+        if (dom.metaDuration) {
+          dom.metaDuration.textContent = formatTime(state.duration);
+        }
+      }
+
+      selectClip(newClip.id);
+      syncPreviewToTimeline(dropTime, false);
+      renderAllTracks();
+      updateTimelineDurationBadge();
+      showToast(`"${data.filename}" ses kanalına başarıyla eklendi 🎵`, 'success');
+
+      // Auto-switch to clip inspector tab for instant volume & trim control
+      activateInspectorTab('clip');
+    } catch (err) {
+      showToast(`Hata: ${err.message}`, 'error');
+    }
+  }
+
   // --- Toolbar Handlers ---
   function initCapCutTimelineStudio() {
     if (dom.btnSplitClip) dom.btnSplitClip.addEventListener('click', splitClipAtPlayhead);
@@ -3207,7 +3975,24 @@
     if (dom.btnUndoTimeline) dom.btnUndoTimeline.addEventListener('click', undoTimeline);
     if (dom.btnResetTimeline) dom.btnResetTimeline.addEventListener('click', resetTimeline);
     if (dom.btnAddVideoTrack) dom.btnAddVideoTrack.addEventListener('click', () => addTrack('video'));
+    if (dom.btnAddTextTrack) dom.btnAddTextTrack.addEventListener('click', () => addTrack('text'));
     if (dom.btnAddAudioTrack) dom.btnAddAudioTrack.addEventListener('click', () => addTrack('audio'));
+
+    // Audio Import Handlers
+    if (dom.btnImportAudio && dom.audioFileInput) {
+      dom.btnImportAudio.addEventListener('click', () => dom.audioFileInput.click());
+    }
+    if (dom.btnTabImportAudio && dom.audioFileInput) {
+      dom.btnTabImportAudio.addEventListener('click', () => dom.audioFileInput.click());
+    }
+    if (dom.audioFileInput) {
+      dom.audioFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        await importAudioFile(file);
+        dom.audioFileInput.value = '';
+      });
+    }
 
     if (dom.btnToggleSnap) {
       dom.btnToggleSnap.addEventListener('click', () => {
@@ -3247,14 +4032,95 @@
     initTimelineFileDrop();
   }
 
+  // --- Zoom Controls Engine (I-3) ---
+  function initZoomControls() {
+    const applyZoom = (newZoom) => {
+      state.timelineZoom = Math.max(15, Math.min(150, Math.round(newZoom)));
+      if (dom.timelineZoomSlider) {
+        dom.timelineZoomSlider.value = state.timelineZoom;
+      }
+      renderAllTracks();
+      updatePlayheadPosition();
+      updateRangeOverlayUI();
+    };
+
+    if (dom.timelineZoomSlider) {
+      dom.timelineZoomSlider.addEventListener('input', (e) => {
+        applyZoom(parseFloat(e.target.value) || 45);
+      });
+    }
+
+    if (dom.btnZoomIn) {
+      dom.btnZoomIn.addEventListener('click', () => {
+        applyZoom(state.timelineZoom + 15);
+      });
+    }
+
+    if (dom.btnZoomOut) {
+      dom.btnZoomOut.addEventListener('click', () => {
+        applyZoom(state.timelineZoom - 15);
+      });
+    }
+
+    if (dom.btnZoomFit) {
+      dom.btnZoomFit.addEventListener('click', () => {
+        const viewportWidth = dom.timelineScrollViewport ? dom.timelineScrollViewport.clientWidth - 60 : 800;
+        const netDur = Math.max(state.duration, calculateNetDuration(), 5);
+        const fitZoom = Math.max(15, Math.min(150, Math.round(viewportWidth / netDur)));
+        applyZoom(fitZoom);
+        showToast('Zaman çizgisi ekrana sığdırıldı 📐', 'info');
+      });
+    }
+  }
+
   // ---------------------------------------------------------------------------
-  // Keyboard Shortcuts Manager
+  // Keyboard Shortcuts Manager (E-7)
   // ---------------------------------------------------------------------------
   function initKeyboardShortcuts() {
+    // Shortcuts Modal open/close listeners
+    if (dom.btnOpenShortcuts) {
+      dom.btnOpenShortcuts.addEventListener('click', () => {
+        if (dom.shortcutsModal) {
+          dom.shortcutsModal.classList.remove('hidden');
+          refreshIcons();
+        }
+      });
+    }
+
+    if (dom.btnCloseShortcuts) {
+      dom.btnCloseShortcuts.addEventListener('click', () => {
+        if (dom.shortcutsModal) dom.shortcutsModal.classList.add('hidden');
+      });
+    }
+
+    if (dom.btnShortcutsOk) {
+      dom.btnShortcutsOk.addEventListener('click', () => {
+        if (dom.shortcutsModal) dom.shortcutsModal.classList.add('hidden');
+      });
+    }
+
     window.addEventListener('keydown', (e) => {
       const activeEl = document.activeElement;
-      if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName)) {
+      if (activeEl && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) || activeEl.isContentEditable)) {
         return;
+      }
+
+      // Ctrl+S: Save Project (.koalaproject)
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+        if (state.view === 'editor') {
+          e.preventDefault();
+          exportProject();
+          return;
+        }
+      }
+
+      // Ctrl+D: Duplicate Clip
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
+        if (state.selectedClipId) {
+          e.preventDefault();
+          duplicateClip(state.selectedClipId);
+          return;
+        }
       }
 
       if (e.key === 'Escape') {
@@ -3505,6 +4371,7 @@
       { key: 'clip', nav: dom.tabNavClip, panel: dom.tabPanelClip },
       { key: 'audio', nav: dom.tabNavAudio, panel: dom.tabPanelAudio },
       { key: 'subtitle', nav: dom.tabNavSubtitle, panel: dom.tabPanelSubtitle },
+      { key: 'text', nav: dom.tabNavText, panel: dom.tabPanelText },
     ];
 
     tabs.forEach(({ key, nav, panel }) => {
@@ -3527,6 +4394,7 @@
       { key: 'clip', nav: dom.tabNavClip },
       { key: 'audio', nav: dom.tabNavAudio },
       { key: 'subtitle', nav: dom.tabNavSubtitle },
+      { key: 'text', nav: dom.tabNavText },
     ];
 
     tabs.forEach(({ key, nav }) => {
@@ -3837,6 +4705,7 @@
       config.timeline_tracks = activeTracks.map((t) => ({
         id: t.id,
         type: t.type,
+        muted: !!t.muted,
         clips: t.clips.map((c) => ({
           id: c.id,
           in_point: Math.round(c.in_point * 1000) / 1000,
@@ -3869,6 +4738,32 @@
     if (dom.checkBurnSubtitles && dom.checkBurnSubtitles.checked && state.subtitles && state.subtitles.srt_file_path) {
       config.burn_subtitles = true;
       config.subtitle_file_path = state.subtitles.srt_file_path;
+      if (state.subtitleStyle) {
+        config.subtitle_font = state.subtitleStyle.font || 'Arial';
+        config.subtitle_font_size = Number(state.subtitleStyle.fontSize) || 22;
+        config.subtitle_color = state.subtitleStyle.color || '#ffffff';
+        config.subtitle_style_preset = state.subtitleStyle.preset || 'box';
+        config.subtitle_position = state.subtitleStyle.position || 'bottom';
+      }
+    }
+
+    // Custom Text Overlays
+    if (state.textOverlays && state.textOverlays.length > 0) {
+      config.text_overlays = state.textOverlays.map((to) => ({
+        id: to.id,
+        text: to.text,
+        start_time: Number(to.start_time) || 0.0,
+        end_time: Number(to.end_time) || 5.0,
+        pos_x: Number(to.pos_x) !== undefined ? Number(to.pos_x) : 50.0,
+        pos_y: Number(to.pos_y) !== undefined ? Number(to.pos_y) : 40.0,
+        font_family: to.font_family || 'Arial',
+        font_size: Number(to.font_size) || 28,
+        color: to.color || '#ffffff',
+        box_enabled: to.box_enabled !== false,
+        bg_color: to.bg_color || '#000000',
+        box_border_width: Number(to.box_border_width) || 0,
+        shadow: to.shadow !== false,
+      }));
     }
 
     // Aspect Ratio
@@ -4013,6 +4908,9 @@
       if (state.activeEventSource) {
         state.activeEventSource.close();
         state.activeEventSource = null;
+      }
+      if (event.status === 'failed' && event.error) {
+        console.error('FFmpeg Transcoding Error Details:', event.error);
       }
       const errMsg = event.error || (event.status === 'cancelled' ? 'İşlem iptal edildi' : 'Video işleme başarısız oldu');
       showToast(errMsg, event.status === 'cancelled' ? 'info' : 'error');
@@ -4185,14 +5083,18 @@
       dom.saveLocationModal.classList.add('hidden');
     };
 
-    dom.btnCopyLink.onclick = () => {
-      const fullUrl = `${window.location.origin}${downloadUrl}`;
-      navigator.clipboard.writeText(fullUrl).then(() => {
-        dom.copyLinkText.textContent = 'Copied!';
-        showToast('Download link copied to clipboard.', 'success');
-        setTimeout(() => (dom.copyLinkText.textContent = 'Copy Link'), 2000);
-      });
-    };
+    if (dom.btnCopyLink) {
+      dom.btnCopyLink.onclick = () => {
+        const fullUrl = `${window.location.origin}${downloadUrl}`;
+        navigator.clipboard.writeText(fullUrl).then(() => {
+          if (dom.copyLinkText) dom.copyLinkText.textContent = 'Kopyalandı!';
+          showToast('İndirme bağlantısı panoya kopyalandı.', 'success');
+          setTimeout(() => {
+            if (dom.copyLinkText) dom.copyLinkText.textContent = 'Bağlantıyı Kopyala';
+          }, 2000);
+        });
+      };
+    }
 
     switchView('complete');
 
@@ -4204,7 +5106,7 @@
       }
     }, 350);
 
-    showToast('Video processed successfully!', 'success');
+    showToast('Video başarıyla işlendi! 🎉', 'success');
   }
 
   // ---------------------------------------------------------------------------
@@ -4342,6 +5244,16 @@
       });
     }
 
+    // Sync version string on startup
+    fetch('/api/updates/status')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.current_version && dom.headerVersionText) {
+          dom.headerVersionText.textContent = `v${data.current_version}`;
+        }
+      })
+      .catch(() => {});
+
     // Check silently 2.5 seconds after app startup
     setTimeout(() => checkForUpdates(false), 2500);
   }
@@ -4473,8 +5385,8 @@
         v1.clips = newClips;
         state.selectedClipId = newClips[0] ? newClips[0].id : null;
 
-        renderTimelineTracks();
-        updateTimelineRuler();
+        renderAllTracks();
+        updateTimelineDurationBadge();
         updateClipInspector();
         syncPreviewToTimeline(0, false);
         closeModal();
@@ -4594,9 +5506,843 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Subtitle Typography & Styling Module
+  // ---------------------------------------------------------------------------
+  function applySubtitleStyleToPreview() {
+    if (!dom.playerSubtitleOverlay || !dom.playerSubtitleText) return;
+    const style = state.subtitleStyle || {
+      preset: 'box',
+      font: 'Arial',
+      fontSize: 22,
+      color: '#ffffff',
+      position: 'bottom',
+    };
+
+    // 1. Font, Size, Color
+    dom.playerSubtitleText.style.fontFamily = style.font;
+    dom.playerSubtitleText.style.fontSize = `${style.fontSize}px`;
+    dom.playerSubtitleText.style.color = style.color;
+
+    // 2. Position
+    dom.playerSubtitleOverlay.classList.remove('bottom-6', 'top-6', 'top-1/2', '-translate-y-1/2');
+    if (style.position === 'top') {
+      dom.playerSubtitleOverlay.classList.add('top-6');
+    } else if (style.position === 'middle') {
+      dom.playerSubtitleOverlay.classList.add('top-1/2', '-translate-y-1/2');
+    } else {
+      dom.playerSubtitleOverlay.classList.add('bottom-6');
+    }
+
+    // 3. Preset / Form styling
+    dom.playerSubtitleText.style.maxWidth = '85%';
+    dom.playerSubtitleText.style.width = 'auto';
+
+    if (style.preset === 'outline') {
+      dom.playerSubtitleText.style.backgroundColor = 'transparent';
+      dom.playerSubtitleText.style.border = 'none';
+      dom.playerSubtitleText.style.boxShadow = 'none';
+      dom.playerSubtitleText.style.backdropFilter = 'none';
+      dom.playerSubtitleText.style.fontWeight = 'bold';
+      dom.playerSubtitleText.style.textShadow = '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 2px 0 #000, 2px 0 0 #000, 0 -2px 0 #000, -2px 0 0 #000';
+      dom.playerSubtitleText.style.padding = '2px 8px';
+      dom.playerSubtitleText.style.borderRadius = '0px';
+    } else if (style.preset === 'yellow_pop') {
+      dom.playerSubtitleText.style.backgroundColor = 'transparent';
+      dom.playerSubtitleText.style.border = 'none';
+      dom.playerSubtitleText.style.boxShadow = 'none';
+      dom.playerSubtitleText.style.backdropFilter = 'none';
+      dom.playerSubtitleText.style.color = '#FFE81F';
+      dom.playerSubtitleText.style.fontWeight = '900';
+      dom.playerSubtitleText.style.textShadow = '3px 3px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000';
+      dom.playerSubtitleText.style.padding = '2px 8px';
+      dom.playerSubtitleText.style.borderRadius = '0px';
+    } else if (style.preset === 'shadow') {
+      dom.playerSubtitleText.style.backgroundColor = 'transparent';
+      dom.playerSubtitleText.style.border = 'none';
+      dom.playerSubtitleText.style.boxShadow = 'none';
+      dom.playerSubtitleText.style.backdropFilter = 'none';
+      dom.playerSubtitleText.style.fontWeight = 'bold';
+      dom.playerSubtitleText.style.textShadow = '0 3px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8)';
+      dom.playerSubtitleText.style.padding = '2px 8px';
+      dom.playerSubtitleText.style.borderRadius = '0px';
+    } else if (style.preset === 'bar') {
+      dom.playerSubtitleText.style.backgroundColor = 'rgba(0,0,0,0.75)';
+      dom.playerSubtitleText.style.border = 'none';
+      dom.playerSubtitleText.style.boxShadow = 'none';
+      dom.playerSubtitleText.style.backdropFilter = 'blur(4px)';
+      dom.playerSubtitleText.style.fontWeight = 'bold';
+      dom.playerSubtitleText.style.textShadow = 'none';
+      dom.playerSubtitleText.style.padding = '8px 24px';
+      dom.playerSubtitleText.style.borderRadius = '0px';
+      dom.playerSubtitleText.style.width = '100%';
+      dom.playerSubtitleText.style.maxWidth = '100%';
+    } else {
+      // Default: box
+      dom.playerSubtitleText.style.backgroundColor = 'rgba(0,0,0,0.85)';
+      dom.playerSubtitleText.style.border = '1px solid rgba(255,255,255,0.15)';
+      dom.playerSubtitleText.style.boxShadow = '0 8px 16px rgba(0,0,0,0.5)';
+      dom.playerSubtitleText.style.backdropFilter = 'blur(4px)';
+      dom.playerSubtitleText.style.fontWeight = 'bold';
+      dom.playerSubtitleText.style.textShadow = 'none';
+      dom.playerSubtitleText.style.padding = '6px 14px';
+      dom.playerSubtitleText.style.borderRadius = '6px';
+    }
+  }
+
+  function initSubtitleTypography() {
+    if (!dom.subtitlePresetsGrid) return;
+
+    // Preset buttons
+    const presetButtons = dom.subtitlePresetsGrid.querySelectorAll('.subtitle-preset-btn');
+    const presetLabels = {
+      box: 'Kutucuklu',
+      outline: 'Konturlu',
+      yellow_pop: 'TikTok Sarı',
+      shadow: 'Gölge',
+      bar: 'Sinematik Şerit',
+    };
+
+    presetButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.preset;
+        state.subtitleStyle.preset = preset;
+
+        presetButtons.forEach((b) => {
+          b.classList.remove('active', 'bg-amber-500/20', 'border-amber-500/40', 'text-white');
+          b.classList.add('bg-slate-800', 'border-white/5', 'text-slate-300');
+        });
+        btn.classList.remove('bg-slate-800', 'border-white/5', 'text-slate-300');
+        btn.classList.add('active', 'bg-amber-500/20', 'border-amber-500/40', 'text-white');
+
+        if (dom.subtitlePresetBadge) {
+          dom.subtitlePresetBadge.textContent = presetLabels[preset] || preset;
+        }
+
+        applySubtitleStyleToPreview();
+      });
+    });
+
+    // Font Family
+    if (dom.subtitleFontFamily) {
+      dom.subtitleFontFamily.addEventListener('change', (e) => {
+        state.subtitleStyle.font = e.target.value;
+        applySubtitleStyleToPreview();
+      });
+    }
+
+    // Font Size
+    if (dom.subtitleFontSize) {
+      dom.subtitleFontSize.addEventListener('input', (e) => {
+        const sz = parseInt(e.target.value, 10);
+        state.subtitleStyle.fontSize = sz;
+        if (dom.subtitleSizeVal) dom.subtitleSizeVal.textContent = `${sz}px`;
+        applySubtitleStyleToPreview();
+      });
+    }
+
+    // Color Picker & Quick Palette
+    if (dom.subtitleColorPicker) {
+      dom.subtitleColorPicker.addEventListener('input', (e) => {
+        state.subtitleStyle.color = e.target.value;
+        applySubtitleStyleToPreview();
+      });
+    }
+
+    const quickColors = document.querySelectorAll('.subtitle-color-quick');
+    quickColors.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const clr = btn.dataset.color;
+        state.subtitleStyle.color = clr;
+        if (dom.subtitleColorPicker) dom.subtitleColorPicker.value = clr;
+        applySubtitleStyleToPreview();
+      });
+    });
+
+    // Vertical Position
+    if (dom.subtitlePositionGroup) {
+      const posButtons = dom.subtitlePositionGroup.querySelectorAll('.subtitle-pos-btn');
+      posButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const pos = btn.dataset.pos;
+          state.subtitleStyle.position = pos;
+
+          posButtons.forEach((b) => {
+            b.classList.remove('active', 'bg-amber-500/20', 'border-amber-500/40', 'text-white');
+            b.classList.add('bg-slate-800', 'text-slate-300');
+          });
+          btn.classList.remove('bg-slate-800', 'text-slate-300');
+          btn.classList.add('active', 'bg-amber-500/20', 'border-amber-500/40', 'text-white');
+
+          applySubtitleStyleToPreview();
+        });
+      });
+    }
+
+    applySubtitleStyleToPreview();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Custom Video Text Overlays Module
+  // ---------------------------------------------------------------------------
+  function updateLiveTextOverlays(curTime) {
+    if (!dom.playerTextOverlaysContainer) return;
+    dom.playerTextOverlaysContainer.innerHTML = '';
+
+    if (!state.textOverlays || state.textOverlays.length === 0) return;
+
+    // Check text track visibility (eye toggle on timeline header)
+    const textTrack = state.tracks.find((t) => t.type === 'text');
+    if (textTrack && textTrack.visible === false) return;
+
+    const activeList = state.textOverlays.filter(
+      (to) => curTime >= to.start_time && curTime <= to.end_time
+    );
+
+    activeList.forEach((to) => {
+      const div = document.createElement('div');
+      div.className = 'absolute inline-block pointer-events-none select-none text-center transition-all';
+      div.style.left = `${to.pos_x}%`;
+      div.style.top = `${to.pos_y}%`;
+      div.style.transform = 'translate(-50%, -50%)';
+      div.style.fontFamily = to.font_family || 'Arial';
+      div.style.fontSize = `${to.font_size || 28}px`;
+      div.style.color = to.color || '#ffffff';
+      div.style.fontWeight = 'bold';
+      div.style.whiteSpace = 'pre-wrap';
+      div.style.maxWidth = '90%';
+
+      if (to.box_enabled) {
+        const bg = to.bg_color || '#000000';
+        div.style.backgroundColor = bg.startsWith('#') ? `${bg}b3` : bg;
+        div.style.padding = '4px 12px';
+        div.style.borderRadius = '4px';
+      }
+
+      if (to.shadow) {
+        div.style.textShadow = '2px 2px 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.5)';
+      }
+
+      div.textContent = to.text || '';
+      dom.playerTextOverlaysContainer.appendChild(div);
+    });
+  }
+
+  function initTextOverlayModule() {
+    if (!dom.btnAddTextOverlay) return;
+
+    dom.btnAddTextOverlay.addEventListener('click', () => {
+      const curTime = Math.round((state.playheadTime || 0) * 10) / 10;
+      const dur = state.duration || 10;
+      const endTime = Math.round(Math.min(dur, curTime + 4.0) * 10) / 10;
+
+      const newOverlay = {
+        id: 'txt_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+        text: 'Yeni Başlık / Metin',
+        start_time: curTime,
+        end_time: endTime > curTime ? endTime : curTime + 2.0,
+        pos_x: 50.0,
+        pos_y: 40.0,
+        font_family: 'Montserrat',
+        font_size: 28,
+        color: '#ffffff',
+        box_enabled: true,
+        bg_color: '#000000',
+        box_border_width: 0,
+        shadow: true,
+      };
+
+      state.textOverlays.push(newOverlay);
+      syncTextOverlaysToTrack();
+      renderTextOverlaysList();
+      renderAllTracks();
+      selectClip(newOverlay.id);
+      updateLiveTextOverlays(state.playheadTime);
+      showToast('Yeni metin katmanı timeline izine eklendi ✍️', 'success');
+    });
+
+    renderTextOverlaysList();
+  }
+
+  function renderTextOverlaysList() {
+    if (!dom.textOverlaysList) return;
+    dom.textOverlaysList.innerHTML = '';
+
+    if (!state.textOverlays || state.textOverlays.length === 0) {
+      if (dom.textOverlaysEmpty) {
+        dom.textOverlaysList.appendChild(dom.textOverlaysEmpty);
+        dom.textOverlaysEmpty.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (dom.textOverlaysEmpty) {
+      dom.textOverlaysEmpty.classList.add('hidden');
+    }
+
+    state.textOverlays.forEach((overlay, idx) => {
+      const card = document.createElement('div');
+      card.className = 'p-3 rounded-xl bg-slate-900/90 border border-white/5 space-y-2.5';
+      card.dataset.overlayId = overlay.id;
+
+      card.innerHTML = `
+        <!-- Card Header -->
+        <div class="flex items-center justify-between pb-1 border-b border-white/5">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-indigo-400">#${idx + 1}</span>
+            <span class="text-xs font-medium text-slate-200 truncate max-w-[130px] overlay-title-label">${overlay.text || 'Başlık'}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-mono text-slate-400 overlay-timing-badge">${formatTime(overlay.start_time)} - ${formatTime(overlay.end_time)}</span>
+            <button type="button" class="btn-delete-overlay p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition cursor-pointer" title="Metni Sil">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Text Content Input -->
+        <div>
+          <label class="text-[10px] text-slate-400 block mb-1">Metin İçeriği:</label>
+          <input type="text" class="input-overlay-text w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-indigo-400" value="${(overlay.text || '').replace(/"/g, '&quot;')}">
+        </div>
+
+        <!-- Timing Row -->
+        <div class="grid grid-cols-2 gap-2 items-end">
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Başlangıç (sn):</label>
+            <input type="number" step="0.1" min="0" class="input-overlay-start w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none font-mono" value="${overlay.start_time}">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Bitiş (sn):</label>
+            <input type="number" step="0.1" min="0" class="input-overlay-end w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none font-mono" value="${overlay.end_time}">
+          </div>
+        </div>
+
+        <!-- Position Controls (X % / Y %) -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <label class="text-[10px] text-slate-400">Yatay (X):</label>
+              <span class="text-[10px] font-mono text-indigo-400 overlay-x-val">${overlay.pos_x}%</span>
+            </div>
+            <input type="range" min="0" max="100" step="1" value="${overlay.pos_x}" class="input-overlay-x w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <label class="text-[10px] text-slate-400">Dikey (Y):</label>
+              <span class="text-[10px] font-mono text-indigo-400 overlay-y-val">${overlay.pos_y}%</span>
+            </div>
+            <input type="range" min="0" max="100" step="1" value="${overlay.pos_y}" class="input-overlay-y w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+          </div>
+        </div>
+
+        <!-- Font Family, Size & Color -->
+        <div class="grid grid-cols-3 gap-2 items-end">
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Font:</label>
+            <select class="select-overlay-font w-full bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1 text-xs text-white outline-none cursor-pointer">
+              <option value="Arial" ${overlay.font_family === 'Arial' ? 'selected' : ''}>Arial</option>
+              <option value="Montserrat" ${overlay.font_family === 'Montserrat' ? 'selected' : ''}>Montserrat</option>
+              <option value="Impact" ${overlay.font_family === 'Impact' ? 'selected' : ''}>Impact</option>
+              <option value="Roboto" ${overlay.font_family === 'Roboto' ? 'selected' : ''}>Roboto</option>
+              <option value="Poppins" ${overlay.font_family === 'Poppins' ? 'selected' : ''}>Poppins</option>
+            </select>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <label class="text-[10px] text-slate-400">Boyut:</label>
+              <span class="text-[10px] font-mono text-indigo-400 overlay-size-val">${overlay.font_size}px</span>
+            </div>
+            <input type="range" min="14" max="72" step="1" value="${overlay.font_size}" class="input-overlay-size w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Renk:</label>
+            <input type="color" class="input-overlay-color w-full h-7 rounded border border-white/10 bg-transparent cursor-pointer" value="${overlay.color || '#ffffff'}">
+          </div>
+        </div>
+
+        <!-- Styling Options: Box & Shadow -->
+        <div class="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] text-slate-300">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" class="check-overlay-box accent-indigo-500 rounded cursor-pointer" ${overlay.box_enabled ? 'checked' : ''}>
+            <span>Kutulu Arka Plan</span>
+          </label>
+          <div class="flex items-center gap-2">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" class="check-overlay-shadow accent-indigo-500 rounded cursor-pointer" ${overlay.shadow ? 'checked' : ''}>
+              <span>Gölge</span>
+            </label>
+            <input type="color" class="input-overlay-bgcolor w-5 h-5 rounded border border-white/10 bg-transparent cursor-pointer ${overlay.box_enabled ? '' : 'opacity-40 pointer-events-none'}" value="${overlay.bg_color || '#000000'}" title="Kutu Rengi">
+          </div>
+        </div>
+      `;
+
+      // Event Listeners for this card
+      const textInput = card.querySelector('.input-overlay-text');
+      const startInput = card.querySelector('.input-overlay-start');
+      const endInput = card.querySelector('.input-overlay-end');
+      const xInput = card.querySelector('.input-overlay-x');
+      const yInput = card.querySelector('.input-overlay-y');
+      const fontSelect = card.querySelector('.select-overlay-font');
+      const sizeInput = card.querySelector('.input-overlay-size');
+      const colorInput = card.querySelector('.input-overlay-color');
+      const boxCheck = card.querySelector('.check-overlay-box');
+      const shadowCheck = card.querySelector('.check-overlay-shadow');
+      const bgColorInput = card.querySelector('.input-overlay-bgcolor');
+      const deleteBtn = card.querySelector('.btn-delete-overlay');
+      const titleLabel = card.querySelector('.overlay-title-label');
+      const timingBadge = card.querySelector('.overlay-timing-badge');
+      const xVal = card.querySelector('.overlay-x-val');
+      const yVal = card.querySelector('.overlay-y-val');
+      const sizeVal = card.querySelector('.overlay-size-val');
+
+      textInput.addEventListener('input', (e) => {
+        overlay.text = e.target.value;
+        titleLabel.textContent = overlay.text || 'Başlık';
+        syncTextOverlaysToTrack();
+        renderAllTracks();
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      startInput.addEventListener('change', (e) => {
+        overlay.start_time = Math.max(0, parseFloat(e.target.value) || 0);
+        timingBadge.textContent = `${formatTime(overlay.start_time)} - ${formatTime(overlay.end_time)}`;
+        syncTextOverlaysToTrack();
+        renderAllTracks();
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      endInput.addEventListener('change', (e) => {
+        overlay.end_time = Math.max(overlay.start_time + 0.2, parseFloat(e.target.value) || 0);
+        timingBadge.textContent = `${formatTime(overlay.start_time)} - ${formatTime(overlay.end_time)}`;
+        syncTextOverlaysToTrack();
+        renderAllTracks();
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      xInput.addEventListener('input', (e) => {
+        overlay.pos_x = parseFloat(e.target.value);
+        xVal.textContent = `${overlay.pos_x}%`;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      yInput.addEventListener('input', (e) => {
+        overlay.pos_y = parseFloat(e.target.value);
+        yVal.textContent = `${overlay.pos_y}%`;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      fontSelect.addEventListener('change', (e) => {
+        overlay.font_family = e.target.value;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      sizeInput.addEventListener('input', (e) => {
+        overlay.font_size = parseInt(e.target.value, 10);
+        sizeVal.textContent = `${overlay.font_size}px`;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      colorInput.addEventListener('input', (e) => {
+        overlay.color = e.target.value;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      boxCheck.addEventListener('change', (e) => {
+        overlay.box_enabled = e.target.checked;
+        if (overlay.box_enabled) {
+          bgColorInput.classList.remove('opacity-40', 'pointer-events-none');
+        } else {
+          bgColorInput.classList.add('opacity-40', 'pointer-events-none');
+        }
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      shadowCheck.addEventListener('change', (e) => {
+        overlay.shadow = e.target.checked;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      bgColorInput.addEventListener('input', (e) => {
+        overlay.bg_color = e.target.value;
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      deleteBtn.addEventListener('click', () => {
+        state.textOverlays = state.textOverlays.filter((o) => o.id !== overlay.id);
+        syncTextOverlaysToTrack();
+        renderTextOverlaysList();
+        renderAllTracks();
+        updateLiveTextOverlays(state.playheadTime);
+      });
+
+      dom.textOverlaysList.appendChild(card);
+    });
+
+    refreshIcons();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dark / Light Theme Controller
+  // ---------------------------------------------------------------------------
+  function applyTheme(theme) {
+    state.theme = theme;
+    try {
+      localStorage.setItem('koala_theme', theme);
+    } catch (_) {}
+
+    if (theme === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+      document.documentElement.setAttribute('data-theme', 'light');
+      if (dom.themeIconSun) dom.themeIconSun.classList.remove('hidden');
+      if (dom.themeIconMoon) dom.themeIconMoon.classList.add('hidden');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      if (dom.themeIconSun) dom.themeIconSun.classList.add('hidden');
+      if (dom.themeIconMoon) dom.themeIconMoon.classList.remove('hidden');
+    }
+
+    renderTimelineRuler();
+    refreshIcons();
+  }
+
+  function toggleTheme() {
+    const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
+    showToast(nextTheme === 'light' ? 'Açık tema aktifleştirildi' : 'Karanlık tema aktifleştirildi', 'info');
+  }
+
+  function initThemeController() {
+    applyTheme(state.theme);
+    if (dom.btnThemeToggle) {
+      dom.btnThemeToggle.addEventListener('click', toggleTheme);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Preview Proxy Quality Controller (N-3)
+  // ---------------------------------------------------------------------------
+  function getPreviewStreamUrl(fileId, quality = state.previewQuality) {
+    if (!fileId) return '';
+    const q = quality || '720p';
+    return `/api/preview/${fileId}?quality=${q}`;
+  }
+
+  function setPreviewQuality(quality) {
+    state.previewQuality = quality;
+    try {
+      localStorage.setItem('koala_preview_quality', quality);
+    } catch (_) {}
+
+    if (dom.selectPreviewQuality && dom.selectPreviewQuality.value !== quality) {
+      dom.selectPreviewQuality.value = quality;
+    }
+
+    if (!state.fileId || !dom.videoPlayer) return;
+
+    const currentTime = dom.videoPlayer.currentTime || state.playheadTime || 0;
+    const wasPlaying = !dom.videoPlayer.paused && state.isPlaying;
+
+    if (dom.proxyLoadingIndicator) {
+      dom.proxyLoadingIndicator.classList.remove('hidden');
+    }
+
+    currentLoadedFileId = null;
+    const newUrl = getPreviewStreamUrl(state.fileId, quality);
+    dom.videoPlayer.src = newUrl;
+
+    const onLoaded = () => {
+      dom.videoPlayer.currentTime = currentTime;
+      if (wasPlaying) {
+        dom.videoPlayer.play().catch(() => {});
+      }
+      if (dom.proxyLoadingIndicator) {
+        dom.proxyLoadingIndicator.classList.add('hidden');
+      }
+      dom.videoPlayer.removeEventListener('loadeddata', onLoaded);
+    };
+
+    dom.videoPlayer.addEventListener('loadeddata', onLoaded, { once: true });
+    setTimeout(() => {
+      if (dom.proxyLoadingIndicator) {
+        dom.proxyLoadingIndicator.classList.add('hidden');
+      }
+    }, 4000);
+
+    const qualityLabels = {
+      original: 'Orijinal',
+      '1080p': '1080p Full HD',
+      '720p': '720p HD (Önerilen)',
+      '480p': '480p SD',
+      '360p': '360p Ultra Hafif',
+    };
+    showToast(`Önizleme kalitesi: ${qualityLabels[quality] || quality}`, 'info');
+  }
+
+  function initPreviewQualityControls() {
+    if (dom.selectPreviewQuality) {
+      dom.selectPreviewQuality.value = state.previewQuality || '720p';
+      dom.selectPreviewQuality.addEventListener('change', (e) => {
+        setPreviewQuality(e.target.value);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Project Save & Load Controller (N-4: .koalaproject)
+  // ---------------------------------------------------------------------------
+  function syncExportUIFromState() {
+    const aspectCards = document.querySelectorAll('.aspect-card');
+    aspectCards.forEach((card) => {
+      if (card.dataset.aspect === state.aspectRatio) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
+    });
+
+    const fitRadio = document.querySelector(`input[name="fit_mode"][value="${state.fitMode}"]`);
+    if (fitRadio) fitRadio.checked = true;
+
+    if (dom.selectResolution) dom.selectResolution.value = state.resolution;
+    if (dom.selectFps) dom.selectFps.value = state.fps;
+
+    if (state.compressionMode === 'crf') {
+      if (dom.tabModeCrf) dom.tabModeCrf.click();
+    } else {
+      if (dom.tabModeTarget) dom.tabModeTarget.click();
+    }
+    if (dom.inputTargetMb) dom.inputTargetMb.value = state.targetSizeMb;
+    if (dom.sliderTargetMb) dom.sliderTargetMb.value = state.targetSizeMb;
+    if (dom.sliderCrf) dom.sliderCrf.value = state.crf;
+    if (dom.selectCodec) dom.selectCodec.value = state.codec;
+    if (dom.selectPreset) dom.selectPreset.value = state.preset;
+    if (dom.checkRemoveAudio) dom.checkRemoveAudio.checked = state.removeAudio;
+    if (dom.selectAudioBitrate) dom.selectAudioBitrate.value = state.audioBitrate;
+
+    updateExportSummary();
+    updateSavingsEstimate();
+  }
+
+  function exportProject() {
+    if (!state.tracks || state.tracks.length === 0) {
+      showToast('Kaydedilecek proje veya zaman çizgisi bulunamadı.', 'error');
+      return;
+    }
+
+    const netDur = calculateNetDuration();
+    const projectName = (state.filename || 'koala_project').replace(/\.[^/.]+$/, '');
+
+    const projectData = {
+      format_version: '1.0',
+      app: 'koala-cut',
+      created_at: new Date().toISOString(),
+      project_name: projectName,
+      source_media: {
+        file_id: state.fileId,
+        filename: state.filename,
+        metadata: state.metadata,
+        duration: state.duration,
+        size_bytes: state.originalSize,
+      },
+      timeline: {
+        tracks: state.tracks,
+        playhead_time: state.playheadTime || 0,
+        duration: netDur,
+      },
+      export_settings: {
+        aspect_ratio: state.aspectRatio,
+        fit_mode: state.fitMode,
+        resolution: state.resolution,
+        fps: state.fps,
+        compression_mode: state.compressionMode,
+        target_size_mb: state.targetSizeMb,
+        crf: state.crf,
+        codec: state.codec,
+        preset: state.preset,
+        remove_audio: state.removeAudio,
+        audio_bitrate: state.audioBitrate,
+      },
+      subtitles: state.subtitles ? {
+        segments: state.subtitles.segments || [],
+      } : null,
+      subtitle_style: state.subtitleStyle || null,
+      text_overlays: state.textOverlays || [],
+    };
+
+    const jsonString = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const safeName = projectName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const filename = `${safeName}.koalaproject`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    showToast(`Proje başarıyla kaydedildi: ${filename} 💾`, 'success');
+  }
+
+  function importProjectFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const projectData = JSON.parse(e.target.result);
+        loadProjectIntoStudio(projectData);
+      } catch (err) {
+        showToast('Proje dosyası okunamadı veya bozuk: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function loadProjectIntoStudio(projectData) {
+    if (!projectData) return;
+
+    // Restore Media Metadata
+    if (projectData.source_media) {
+      state.fileId = projectData.source_media.file_id || null;
+      state.filename = projectData.source_media.filename || `${projectData.project_name || 'proje'}.mp4`;
+      state.metadata = projectData.source_media.metadata || null;
+      state.duration = projectData.source_media.duration || projectData.timeline.duration || 0;
+      state.originalSize = projectData.source_media.size_bytes || 0;
+    }
+
+    // Restore timeline with defensive sanitization
+    state.tracks = (projectData.timeline.tracks || []).map((trk) => ({
+      id: trk.id || 'v1',
+      type: trk.type === 'audio' ? 'audio' : 'video',
+      name: trk.name || (trk.type === 'audio' ? 'A1' : 'V1'),
+      visible: trk.visible !== false,
+      muted: Boolean(trk.muted),
+      locked: Boolean(trk.locked),
+      clips: Array.isArray(trk.clips) ? trk.clips.map((c) => ({
+        ...c,
+        in_point: typeof c.in_point === 'number' ? c.in_point : 0,
+        out_point: typeof c.out_point === 'number' ? c.out_point : 1,
+        timeline_start: typeof c.timeline_start === 'number' ? c.timeline_start : 0,
+        speed: c.speed && c.speed > 0 ? c.speed : 1.0,
+        volume: c.volume !== undefined ? c.volume : 1.0,
+      })) : [],
+    }));
+    state.playheadTime = projectData.timeline.playhead_time || 0.0;
+    state.selectedClipId = null;
+    state.timelineHistory = [];
+
+    // Restore export settings
+    if (projectData.export_settings) {
+      const s = projectData.export_settings;
+      if (s.aspect_ratio) state.aspectRatio = s.aspect_ratio;
+      if (s.fit_mode) state.fitMode = s.fit_mode;
+      if (s.resolution) state.resolution = s.resolution;
+      if (s.fps) state.fps = s.fps;
+      if (s.compression_mode) state.compressionMode = s.compression_mode;
+      if (s.target_size_mb) state.targetSizeMb = s.target_size_mb;
+      if (s.crf) state.crf = s.crf;
+      if (s.codec) state.codec = s.codec;
+      if (s.preset) state.preset = s.preset;
+      if (s.remove_audio !== undefined) state.removeAudio = Boolean(s.remove_audio);
+      if (s.audio_bitrate) state.audioBitrate = s.audio_bitrate;
+    }
+
+    // Restore subtitles
+    if (projectData.subtitles && projectData.subtitles.segments) {
+      state.subtitles = {
+        id: 'restored',
+        segments: projectData.subtitles.segments,
+        burn_subtitles: false,
+      };
+      if (dom.subtitleResultsContainer) dom.subtitleResultsContainer.classList.remove('hidden');
+      if (dom.subtitleCountBadge) dom.subtitleCountBadge.textContent = `${state.subtitles.segments.length} segment`;
+      renderSubtitleList();
+    }
+
+    // Restore subtitle styling
+    if (projectData.subtitle_style) {
+      state.subtitleStyle = Object.assign(state.subtitleStyle || {}, projectData.subtitle_style);
+      if (dom.subtitleFontFamily) dom.subtitleFontFamily.value = state.subtitleStyle.font;
+      if (dom.subtitleFontSize) {
+        dom.subtitleFontSize.value = state.subtitleStyle.fontSize;
+        if (dom.subtitleSizeVal) dom.subtitleSizeVal.textContent = `${state.subtitleStyle.fontSize}px`;
+      }
+      if (dom.subtitleColorPicker) dom.subtitleColorPicker.value = state.subtitleStyle.color;
+      applySubtitleStyleToPreview();
+    }
+
+    // Restore text overlays
+    if (projectData.text_overlays && Array.isArray(projectData.text_overlays)) {
+      state.textOverlays = projectData.text_overlays;
+      syncTextOverlaysToTrack();
+      renderTextOverlaysList();
+      updateLiveTextOverlays(state.playheadTime);
+    }
+
+    // Update UI Elements
+    if (dom.metaFilename) {
+      dom.metaFilename.textContent = state.filename;
+      dom.metaFilename.title = state.filename;
+    }
+    if (dom.metaDuration) dom.metaDuration.textContent = formatTime(state.duration);
+    if (dom.metaSize) dom.metaSize.textContent = formatBytes(state.originalSize);
+
+    syncExportUIFromState();
+    renderAllTracks();
+    updateTimelineDurationBadge();
+
+    if (state.fileId) {
+      const streamUrl = getPreviewStreamUrl(state.fileId, state.previewQuality);
+      currentLoadedFileId = state.fileId;
+      dom.videoPlayer.src = streamUrl;
+      dom.videoPlayer.load();
+      syncPreviewToTimeline(state.playheadTime, false);
+    }
+
+    switchView('editor');
+    showToast(`Proje yüklendi: ${projectData.project_name || state.filename} 📂`, 'success');
+  }
+
+  function initProjectHandlers() {
+    if (dom.btnSaveProject) {
+      dom.btnSaveProject.addEventListener('click', exportProject);
+    }
+
+    if (dom.btnLoadProject) {
+      dom.btnLoadProject.addEventListener('click', () => {
+        if (dom.projectFileInput) dom.projectFileInput.click();
+      });
+    }
+
+    if (dom.btnHomeLoadProject) {
+      dom.btnHomeLoadProject.addEventListener('click', () => {
+        if (dom.projectFileInput) dom.projectFileInput.click();
+      });
+    }
+
+    if (dom.projectFileInput) {
+      dom.projectFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          importProjectFile(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Bootstrapping
   // ---------------------------------------------------------------------------
   function init() {
+    initThemeController();
+    initPreviewQualityControls();
+    initProjectHandlers();
     initUploadHandlers();
     initPlayerControls();
     initCapCutTimelineStudio();
@@ -4605,6 +6351,8 @@
     initAccordions();
     initSilenceDetector();
     initSubtitleStudio();
+    initSubtitleTypography();
+    initTextOverlayModule();
     initAspectRatioControls();
     initResolutionAndFpsControls();
     initCompressionControls();

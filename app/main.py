@@ -18,17 +18,18 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.engine.binaries import get_ffmpeg_path
 from app.engine.builder import VideoFilterConfig
 from app.engine.hardware import detect_gpu_capabilities
 from app.engine.probe import MediaMetadata, ProbeError, probe_media_async
 from app.services.job_manager import Job, job_manager
-from app.services.preview import ensure_preview_file, is_browser_compatible
+from app.services.preview import QUALITY_PROFILES, ensure_preview_file, is_browser_compatible
 from app.services.storage import (
     STATIC_DIR,
     create_range_streaming_response,
@@ -219,7 +220,7 @@ async def load_demo_video() -> UploadResponse:
     demo_file = storage_manager.upload_dir / "demo_sample.mp4"
     if not demo_file.is_file() or demo_file.stat().st_size == 0:
         cmd = [
-            "ffmpeg", "-y",
+            get_ffmpeg_path(), "-y",
             "-f", "lavfi", "-i", "testsrc=duration=6:size=1280x720:rate=30",
             "-f", "lavfi", "-i", "sine=frequency=500:duration=6",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast",
@@ -371,22 +372,35 @@ async def save_job_output_to_path(job_id: str, payload: SaveToRequest) -> SaveTo
         raise HTTPException(status_code=400, detail="Job is not yet completed or output file is missing.")
 
     destination_str = payload.destination.strip().strip('"').strip("'")
-    if not destination_str:
-        raise HTTPException(status_code=400, detail="Destination path cannot be empty.")
+    if not destination_str or "\x00" in destination_str:
+        raise HTTPException(status_code=400, detail="Geçersiz hedef dosya yolu.")
 
-    dest = Path(destination_str)
+    try:
+        dest = Path(destination_str).expanduser().resolve()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Hedef yol çözümlenemedi: {exc}")
+
+    # Prevent writing directly into Windows or POSIX system root directories
+    forbidden_prefixes = ["c:\\windows", "c:\\program files", "/bin", "/sbin", "/etc", "/boot", "/usr/bin"]
+    resolved_lower = str(dest).lower()
+    if any(resolved_lower.startswith(prefix) for prefix in forbidden_prefixes):
+        raise HTTPException(status_code=403, detail="Sistem dizinlerine doğrudan kayıt yapılamaz.")
+
     if dest.is_dir() or destination_str.endswith(("\\", "/")):
         dest.mkdir(parents=True, exist_ok=True)
         dest = dest / Path(job.output_path).name
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure safe video extension
+        if not dest.suffix:
+            dest = dest.with_suffix(".mp4")
 
     try:
         shutil.copy2(job.output_path, dest)
         return SaveToResponse(
             success=True,
-            saved_path=str(dest.resolve()),
-            message=f"Video başarıyla kaydedildi: {dest.resolve()}",
+            saved_path=str(dest),
+            message=f"Video başarıyla kaydedildi: {dest}",
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Dosya kaydedilemedi: {exc}") from exc
@@ -418,12 +432,18 @@ async def stream_media(file_id: str, request: Request):
     # Check upload storage, output storage, or job output path
     media_path = storage_manager.resolve_media_path(file_id)
 
-    # On-demand preview generation if requested as preview_{id} and not yet created
+    # On-demand preview generation if requested as preview_{id} or preview_{quality}_{id}
     if (not media_path or not media_path.is_file()) and file_id.startswith("preview_"):
-        orig_id = file_id[len("preview_"):]
+        parts = file_id.split("_", 2)
+        if len(parts) == 3 and parts[1] in QUALITY_PROFILES:
+            quality = parts[1]
+            orig_id = parts[2]
+        else:
+            quality = "720p"
+            orig_id = file_id[len("preview_"):]
         orig_path = storage_manager.resolve_upload_path(orig_id)
         if orig_path and orig_path.is_file():
-            _, media_path = await ensure_preview_file(orig_id, orig_path)
+            _, media_path = await ensure_preview_file(orig_id, orig_path, quality=quality)
 
     if not media_path or not media_path.is_file():
         job = job_manager.get_job(file_id)
@@ -438,15 +458,44 @@ async def stream_media(file_id: str, request: Request):
 
 
 @app.get("/api/preview/{file_id}")
-async def stream_preview(file_id: str, request: Request):
-    """Stream a guaranteed browser-compatible (H.264 / AAC) preview proxy."""
+async def stream_preview(file_id: str, request: Request, quality: str = Query("720p")):
+    """Stream a guaranteed browser-compatible preview proxy at the requested quality."""
     orig_path = storage_manager.resolve_upload_path(file_id)
     if not orig_path or not orig_path.is_file():
         raise HTTPException(status_code=404, detail=f"Source media '{file_id}' not found.")
 
-    _, preview_path = await ensure_preview_file(file_id, orig_path)
+    try:
+        raw_meta = await probe_media_async(str(orig_path))
+        metadata = MediaMetadata(**raw_meta)
+    except Exception:
+        metadata = None
+
+    _, preview_path = await ensure_preview_file(file_id, orig_path, metadata=metadata, quality=quality)
     range_header = request.headers.get("Range")
     return create_range_streaming_response(preview_path, range_header)
+
+
+@app.post("/api/preview/{file_id}/quality")
+async def generate_preview_quality(file_id: str, quality: str = Query("720p")):
+    """Pre-generate a proxy quality for a file and return its metadata/URL."""
+    orig_path = storage_manager.resolve_upload_path(file_id)
+    if not orig_path or not orig_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Source media '{file_id}' not found.")
+
+    try:
+        raw_meta = await probe_media_async(str(orig_path))
+        metadata = MediaMetadata(**raw_meta)
+    except Exception:
+        metadata = None
+
+    preview_id, preview_path = await ensure_preview_file(file_id, orig_path, metadata=metadata, quality=quality)
+    return {
+        "file_id": file_id,
+        "quality": quality,
+        "preview_id": preview_id,
+        "preview_url": f"/api/preview/{file_id}?quality={quality}",
+        "size_bytes": preview_path.stat().st_size if preview_path.is_file() else 0,
+    }
 
 
 # ---------------------------------------------------------------------------

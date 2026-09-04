@@ -90,6 +90,32 @@ class TimelineTrack(BaseModel):
     locked: bool = Field(default=False, description="Lock track against editing")
 
 
+class TextOverlay(BaseModel):
+    """Text element to burn into video with styling and timing."""
+    id: str = Field(default="", description="Unique ID for the text overlay")
+    text: str = Field(description="Text content")
+    start_time: float = Field(default=0.0, ge=0.0, description="Start time on timeline (seconds)")
+    end_time: float = Field(default=5.0, gt=0.0, description="End time on timeline (seconds)")
+    pos_x: float = Field(default=50.0, ge=0.0, le=100.0, description="Horizontal position percent (0-100%, 50 = Center)")
+    pos_y: float = Field(default=20.0, ge=0.0, le=100.0, description="Vertical position percent (0-100%, 20 = Top, 50 = Center, 85 = Bottom)")
+    font_family: str = Field(default="Arial", description="Font name")
+    font_size: int = Field(default=32, ge=10, le=120, description="Font size in pixels")
+    color: str = Field(default="#FFFFFF", description="Hex font color e.g. #FFFFFF, #FFDD00")
+    box_enabled: bool = Field(default=False, description="Enable background box/pill")
+    bg_color: str = Field(default="black@0.6", description="Background box color e.g. black@0.6")
+    box_border_width: int = Field(default=8, ge=0, le=40, description="Padding for background box")
+    shadow: bool = Field(default=True, description="Drop shadow for readability")
+
+
+def hex_to_ass_color(hex_str: str) -> str:
+    """Convert #RRGGBB hex color to ASS format &H00BBGGRR."""
+    clean = hex_str.lstrip("#")
+    if len(clean) == 6:
+        r, g, b = clean[0:2], clean[2:4], clean[4:6]
+        return f"&H00{b}{g}{r}".upper()
+    return "&H00FFFFFF"
+
+
 class VideoFilterConfig(BaseModel):
     """Configuration for video transformation and encoding."""
     start_time: Optional[float] = Field(default=None, ge=0.0, description="Start time in seconds")
@@ -121,9 +147,16 @@ class VideoFilterConfig(BaseModel):
     # AI Suite: Neural Voice Isolation (RNNoise)
     neural_voice_isolation: bool = Field(default=False, description="Global RNNoise voice isolation")
     voice_isolation_mix: float = Field(default=1.0, ge=0.0, le=1.0, description="Voice isolation intensity (0.0 - 1.0)")
-    # AI Suite: Subtitle Burn-In
+    # AI Suite: Subtitle Burn-In & Typography
     burn_subtitles: bool = Field(default=False, description="Hardcode/burn subtitles onto the video stream")
     subtitle_file_path: Optional[str] = Field(default=None, description="Path to .srt subtitle file to burn-in")
+    subtitle_font: str = Field(default="Arial", description="Subtitle font family")
+    subtitle_font_size: int = Field(default=22, ge=12, le=56, description="Subtitle font size in pt")
+    subtitle_color: str = Field(default="#FFFFFF", description="Subtitle text color in hex")
+    subtitle_style_preset: str = Field(default="outline", description="Preset: 'outline', 'box', 'yellow_pop', 'shadow', 'bar'")
+    subtitle_position: str = Field(default="bottom", description="Position: 'bottom', 'middle', 'top'")
+    # Custom Text Overlays (Videoya Metin / Başlık Ekleme)
+    text_overlays: list[TextOverlay] = Field(default_factory=list, description="Custom text elements overlayed on video")
     fast_seek: bool = Field(default=True, description="Place trim flags before input for fast seek")
     hwaccel: str = Field(default="auto", description="Hardware acceleration mode ('auto', 'nvenc', 'qsv', 'amf', 'cpu')")
     timeline_tracks: Optional[list[TimelineTrack]] = Field(
@@ -274,12 +307,67 @@ class FFmpegCommandBuilder:
         if config.fps is not None and config.fps > 0:
             filters.append(f"fps=fps={config.fps}")
 
-        # AI Suite: Burn-in Subtitles
-        if config.burn_subtitles and config.subtitle_file_path and os.path.exists(config.subtitle_file_path):
+        # AI Suite: Burn-in Subtitles with dynamic typography & style presets
+        if config.burn_subtitles and config.subtitle_file_path:
             safe_sub_path = os.path.abspath(config.subtitle_file_path).replace("\\", "/").replace(":", "\\:")
-            # High-legibility subtitles with solid outline
-            style_str = "force_style='FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=1.5,MarginV=30'"
+            font_name = config.subtitle_font or "Arial"
+            font_size = config.subtitle_font_size or 22
+            ass_primary = hex_to_ass_color(config.subtitle_color or "#FFFFFF")
+
+            style_parts = [
+                f"FontName={font_name}",
+                f"FontSize={font_size}",
+                f"PrimaryColour={ass_primary}",
+            ]
+
+            preset = config.subtitle_style_preset or "outline"
+            if preset == "box":
+                style_parts.extend(["BorderStyle=3", "Outline=0", "BackColour=&H80000000", "Shadow=0"])
+            elif preset == "yellow_pop":
+                style_parts.extend(["PrimaryColour=&H0000E6FF", "BorderStyle=1", "Outline=3", "OutlineColour=&H00000000", "Shadow=1", "ShadowColour=&H80000000"])
+            elif preset == "shadow":
+                style_parts.extend(["BorderStyle=1", "Outline=1", "OutlineColour=&H00000000", "Shadow=2.5", "ShadowColour=&H90000000"])
+            elif preset == "bar":
+                style_parts.extend(["BorderStyle=4", "Outline=1", "BackColour=&HA0000000"])
+            else:  # outline (default)
+                style_parts.extend(["BorderStyle=1", "Outline=2.2", "OutlineColour=&H00000000", "Shadow=0"])
+
+            pos = config.subtitle_position or "bottom"
+            if pos == "top":
+                style_parts.extend(["Alignment=6", "MarginV=30"])
+            elif pos == "middle":
+                style_parts.extend(["Alignment=5", "MarginV=0"])
+            else:
+                style_parts.extend(["Alignment=2", "MarginV=30"])
+
+            style_str = f"force_style='{','.join(style_parts)}'"
             filters.append(f"subtitles=filename='{safe_sub_path}':{style_str}")
+
+        # Custom Text Overlays (Videoya Serbest Metin / Başlık Ekleme)
+        if config.text_overlays:
+            for txt in config.text_overlays:
+                if not txt.text or not txt.text.strip():
+                    continue
+                safe_text = (
+                    txt.text.replace("\\", "\\\\")
+                    .replace("'", "'\\''")
+                    .replace("%", "\\%")
+                    .replace(":", "\\:")
+                )
+                dt_parts = [
+                    f"text='{safe_text}'",
+                    f"fontsize={txt.font_size}",
+                    f"fontcolor={txt.color}",
+                    f"font='{txt.font_family}'",
+                    f"x=(w-text_w)*{txt.pos_x/100:.3f}",
+                    f"y=(h-text_h)*{txt.pos_y/100:.3f}",
+                    f"enable='between(t,{txt.start_time:.3f},{txt.end_time:.3f})'",
+                ]
+                if txt.box_enabled:
+                    dt_parts.append(f"box=1:boxcolor={txt.bg_color}:boxborderw={txt.box_border_width}")
+                if txt.shadow:
+                    dt_parts.append("shadowcolor=black@0.6:shadowx=2:shadowy=2")
+                filters.append(f"drawtext={':'.join(dt_parts)}")
 
         return filters
 

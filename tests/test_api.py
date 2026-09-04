@@ -407,3 +407,39 @@ def test_open_folder_endpoint(client, monkeypatch, tmp_path):
     data = res_valid.json()
     assert data["success"] is True
     assert len(mock_called) == 1
+
+
+def test_save_to_path_traversal_protection(client, tmp_path):
+    """Verify that path traversal attempts to system directories are rejected (G-1)."""
+    from app.main import job_manager
+    from app.engine.builder import VideoFilterConfig
+    out_file = tmp_path / "safe_output.mp4"
+    out_file.write_bytes(b"sample video bytes")
+
+    job = job_manager.create_job("in.mp4", str(out_file), VideoFilterConfig(), job_id="job_sec_test")
+    job.status = "completed"
+
+    # Attempt to write to Windows system directory
+    res = client.post("/api/jobs/job_sec_test/save-to", json={"destination": "C:\\Windows\\System32\\bad.mp4"})
+    assert res.status_code == 403
+    assert "Sistem dizinlerine" in res.json()["detail"]
+
+
+def test_job_manager_cleanup():
+    """Verify that stale completed jobs are cleaned up to prevent memory accumulation (G-2)."""
+    from app.services.job_manager import JobManager
+    from app.engine.builder import VideoFilterConfig
+    jm = JobManager()
+    j1 = jm.create_job("in1.mp4", "out1.mp4", VideoFilterConfig(), job_id="j1")
+    j2 = jm.create_job("in2.mp4", "out2.mp4", VideoFilterConfig(), job_id="j2")
+
+    j1.status = "completed"
+    j1.completed_at = time.time() - 4000  # Older than 1 hour
+
+    j2.status = "completed"
+    j2.completed_at = time.time() - 100  # Recent
+
+    removed = jm.cleanup_old_jobs(max_age_seconds=3600)
+    assert removed == 1
+    assert jm.get_job("j1") is None
+    assert jm.get_job("j2") is not None

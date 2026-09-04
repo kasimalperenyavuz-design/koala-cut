@@ -72,6 +72,22 @@ class JobManager:
         """List all tracked jobs sorted by created_at descending."""
         return sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
 
+    def cleanup_old_jobs(self, max_age_seconds: float = 3600.0) -> int:
+        """Purge completed, failed, or cancelled jobs older than max_age_seconds to prevent memory accumulation."""
+        now = time.time()
+        to_remove = []
+        for jid, job in self._jobs.items():
+            if job.status in ("completed", "failed", "cancelled"):
+                completed_time = job.completed_at or job.created_at
+                if now - completed_time > max_age_seconds:
+                    to_remove.append(jid)
+
+        for jid in to_remove:
+            self._jobs.pop(jid, None)
+            self._subscribers.pop(jid, None)
+
+        return len(to_remove)
+
     def create_job(
         self,
         input_path: str,
@@ -90,6 +106,12 @@ class JobManager:
         Returns:
             The created Job instance.
         """
+        # Periodic cleanup of stale jobs older than 1 hour (G-2)
+        try:
+            self.cleanup_old_jobs(max_age_seconds=3600.0)
+        except Exception:
+            pass
+
         jid = job_id or str(uuid.uuid4())
         input_size = 0
         if os.path.isfile(input_path):
@@ -333,7 +355,12 @@ class JobManager:
         except FFmpegExecutionError as exc:
             job.status = "failed"
             job.completed_at = time.time()
-            job.error = exc.message
+            stderr_snippet = ""
+            if exc.stderr:
+                lines = [l.strip() for l in exc.stderr.strip().splitlines() if l.strip()]
+                last_lines = lines[-4:] if len(lines) >= 4 else lines
+                stderr_snippet = ": " + " | ".join(last_lines)
+            job.error = f"{exc.message}{stderr_snippet}"
             await self._publish_event(job)
 
         except asyncio.CancelledError:

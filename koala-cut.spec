@@ -29,6 +29,7 @@ hidden_imports = [
 
 datas = [
     ("app/static", "app/static"),
+    ("app/engine/models", "app/engine/models"),
 ]
 
 a = Analysis(
@@ -40,7 +41,13 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "torch", "torchvision", "torchaudio", "scipy", "scikit-learn", "numpy"],
+    excludes=[
+        "tkinter", "matplotlib", "torch", "torchvision", "torchaudio",
+        "scipy", "scikit-learn", "numpy", "transformers", "spacy",
+        "PIL", "cv2", "librosa", "timm", "faster_whisper", "ctranslate2",
+        "tokenizers", "huggingface_hub", "nltk", "numba", "tensorboard",
+        "tensorflow", "keras"
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

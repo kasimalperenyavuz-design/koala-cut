@@ -19,6 +19,9 @@ uploads/*
 outputs/*
 !outputs/.gitkeep
 
+# Downloaded AI models cache (Whisper)
+models/
+
 # User updater local configs
 updater_config.json
 

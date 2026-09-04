@@ -44,40 +44,72 @@
   </script>
 
   <!-- Custom Studio CSS -->
-  <link rel="stylesheet" href="/static/style.css?v=2.5.0">
+  <link rel="stylesheet" href="/static/style.css?v=2.6.0">
+
+  <!-- Instant Theme Bootstrapper to prevent FOUT -->
+  <script>
+    (function() {
+      var savedTheme = localStorage.getItem('koala_theme') || 'dark';
+      if (savedTheme === 'light') {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
 </head>
 <body class="bg-studio-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-600 selection:text-white">
 
   <!-- Studio Top Navigation -->
-  <header class="border-b border-white/10 bg-studio-900/80 backdrop-blur-md sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between">
+  <header class="border-b border-white/10 bg-[#0c0c0e] sticky top-0 z-40 px-5 py-2.5 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 p-[1.5px] shadow-lg shadow-emerald-500/20">
-        <div class="h-full w-full bg-studio-950 rounded-[10px] flex items-center justify-center text-lg select-none">
-          🐨
-        </div>
+      <div class="h-8 w-8 rounded-lg bg-[#18181c] border border-white/10 flex items-center justify-center text-base select-none shadow-sm">
+        🐨
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <span class="font-black text-lg tracking-tight text-white">koala<span class="text-emerald-400">-cut</span></span>
-          <button id="btn-check-updates" title="Güncellemeleri Denetle" class="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-mono font-bold uppercase border border-emerald-500/30 transition-all cursor-pointer">
+          <span class="font-bold text-base tracking-tight text-white">koala<span class="text-[var(--accent)]">-cut</span></span>
+          <button id="btn-check-updates" title="Güncellemeleri Denetle" class="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded bg-[#18181c] hover:bg-[#222228] text-slate-400 hover:text-slate-200 font-mono font-medium border border-white/10 transition-colors cursor-pointer">
             <i data-lucide="refresh-cw" id="icon-update-refresh" class="w-2.5 h-2.5"></i>
-            <span id="header-version-text">v1.2.0</span>
+            <span id="header-version-text">v1.3.0</span>
           </button>
         </div>
-        <p class="text-[11px] text-slate-400">Hızlı Video Kırpma, Bölüm Çıkarma ve Akıllı Sıkıştırma</p>
+        <p class="text-[10px] text-slate-400">Hızlı Video Kurgu, Ses İyileştirme ve Akıllı Sıkıştırma</p>
       </div>
     </div>
 
     <!-- Active Video Status & Quick Action -->
-    <div class="flex items-center gap-3">
-      <div id="header-status-badge" class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-white/5 text-xs text-slate-300">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-        <span id="header-file-name">Ready</span>
+    <div class="flex items-center gap-2.5">
+      <div id="header-status-badge" class="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#141418] border border-white/10 text-xs text-slate-300">
+        <span class="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span>
+        <span id="header-file-name" class="font-mono text-[11px]">Hazır</span>
       </div>
 
-      <button id="btn-header-new" class="hidden text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 transition-colors flex items-center gap-1.5">
-        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-        <span>New File</span>
+      <!-- Project Save & Load (N-4) -->
+      <button id="btn-save-project" title="Projeyi Kaydet (.koalaproject)" class="hidden btn-ghost text-xs flex items-center gap-1.5 cursor-pointer">
+        <i data-lucide="save" class="w-3.5 h-3.5 text-[var(--accent)]"></i>
+        <span class="hidden md:inline">Projeyi Kaydet</span>
+      </button>
+
+      <button id="btn-load-project" title="Proje Aç (.koalaproject)" class="btn-ghost text-xs flex items-center gap-1.5 cursor-pointer">
+        <i data-lucide="folder-open" class="w-3.5 h-3.5 text-[var(--accent)]"></i>
+        <span class="hidden md:inline">Proje Aç</span>
+      </button>
+      <input type="file" id="project-file-input" class="hidden" accept=".koalaproject,.json">
+
+      <!-- Dark / Light Theme Toggle Button -->
+      <button id="btn-theme-toggle" title="Temayı Değiştir (Karanlık / Açık)" class="btn-ghost text-xs p-1.5 flex items-center justify-center rounded-md cursor-pointer transition-colors" aria-label="Temayı Değiştir">
+        <i data-lucide="sun" id="theme-icon-sun" class="w-4 h-4 hidden text-amber-400"></i>
+        <i data-lucide="moon" id="theme-icon-moon" class="w-4 h-4 text-slate-300"></i>
+      </button>
+
+      <button id="btn-header-new" class="hidden btn-ghost text-xs flex items-center gap-1.5 cursor-pointer">
+        <i data-lucide="upload" class="w-3 h-3"></i>
+        <span>Yeni Dosya</span>
       </button>
     </div>
   </header>
@@ -105,60 +137,64 @@
         </div>
 
         <!-- Drag & Drop Zone -->
-        <div id="drop-zone" class="glass-panel rounded-2xl p-8 sm:p-12 border-2 border-dashed border-slate-700/80 hover:border-emerald-500/60 transition-all cursor-pointer group relative overflow-hidden">
+        <div id="drop-zone" class="glass-panel rounded-xl p-8 sm:p-12 border-2 border-dashed border-white/15 hover:border-[var(--accent)] transition-all cursor-pointer group relative overflow-hidden bg-[#0d0d10]">
           <input type="file" id="file-input" class="hidden" accept="video/mp4,video/quicktime,video/x-matroska,video/x-msvideo,video/webm,.mp4,.mov,.mkv,.avi,.webm">
           
-          <div class="relative z-10 flex flex-col items-center space-y-4">
-            <div class="w-16 h-16 rounded-2xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-600/20 group-hover:border-emerald-500/40 transition-all shadow-xl">
-              <i data-lucide="upload-cloud" class="w-8 h-8 text-emerald-400 group-hover:text-emerald-300 transition-colors"></i>
+          <div class="flex flex-col items-center justify-center space-y-4 pointer-events-none">
+            <div class="w-14 h-14 rounded-xl bg-[#18181c] border border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg">
+              <i data-lucide="upload-cloud" class="w-7 h-7 text-[var(--accent)] transition-colors"></i>
             </div>
             <div class="space-y-1">
-              <p class="text-base font-semibold text-white">
-                Videonuzu buraya sürükleyin veya <span class="text-emerald-400 group-hover:text-emerald-300 underline underline-offset-4">dosya seçin</span>
+              <p class="text-sm font-semibold text-white">
+                Videonuzu buraya sürükleyin veya <span class="text-[var(--accent)] underline underline-offset-4">dosya seçin</span>
               </p>
-              <p class="text-xs text-slate-400">MP4, MOV, MKV, AVI, WEBM desteklenir (2 GB'a kadar)</p>
+              <p class="text-xs text-slate-400">MP4, MOV, MKV, AVI, WEBM desteklenir (Yerel ve Hızlı)</p>
             </div>
           </div>
         </div>
 
-        <!-- Quick Demo Video Button -->
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-          <button id="btn-load-demo" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 border border-white/10 hover:border-emerald-500/30 text-sm font-medium transition-all shadow-md flex items-center justify-center gap-2 hover:text-white">
-            <i data-lucide="play-circle" class="w-4 h-4 text-emerald-400"></i>
+        <!-- Quick Demo Video & Load Project Buttons -->
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+          <button id="btn-load-demo" class="btn-ghost text-xs px-4 py-2 flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="play-circle" class="w-4 h-4 text-[var(--accent)]"></i>
             <span>Örnek Video ile Dene</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">Anında Test</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono">Test</span>
+          </button>
+          <button id="btn-home-load-project" class="btn-ghost text-xs px-4 py-2 flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="folder-open" class="w-4 h-4 text-[var(--accent)]"></i>
+            <span>Mevcut Projeyi Aç (.koalaproject)</span>
           </button>
         </div>
 
         <!-- Feature Highlights Badges -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 text-left">
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <div class="text-emerald-400 flex items-center gap-1.5 text-xs font-semibold">
-              <i data-lucide="scissors" class="w-4 h-4"></i>
-              Hassas Kırpma
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-4 text-left">
+          <div class="glass-card p-3 rounded-lg border border-white/5 space-y-1">
+            <div class="text-slate-200 flex items-center gap-1.5 text-xs font-semibold">
+              <i data-lucide="scissors" class="w-3.5 h-3.5 text-[var(--accent)]"></i>
+              Hassas Kurgu
             </div>
-            <p class="text-[11px] text-slate-400">Görsel çift tutamaçla milisaniyelik kesimler</p>
+            <p class="text-[11px] text-slate-400">Milisaniyelik aralık kesimleri & Razor Split</p>
           </div>
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <div class="text-teal-400 flex items-center gap-1.5 text-xs font-semibold">
-              <i data-lucide="crop" class="w-4 h-4"></i>
+          <div class="glass-card p-3 rounded-lg border border-white/5 space-y-1">
+            <div class="text-slate-200 flex items-center gap-1.5 text-xs font-semibold">
+              <i data-lucide="crop" class="w-3.5 h-3.5 text-[var(--accent)]"></i>
               Sosyal Medya
             </div>
             <p class="text-[11px] text-slate-400">9:16 Shorts/TikTok, 1:1 IG ve Akıllı Kırpma</p>
           </div>
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <div class="text-cyan-400 flex items-center gap-1.5 text-xs font-semibold">
-              <i data-lucide="gauge" class="w-4 h-4"></i>
+          <div class="glass-card p-3 rounded-lg border border-white/5 space-y-1">
+            <div class="text-slate-200 flex items-center gap-1.5 text-xs font-semibold">
+              <i data-lucide="gauge" class="w-3.5 h-3.5 text-[var(--accent)]"></i>
               Hedef MB Boyutu
             </div>
             <p class="text-[11px] text-slate-400">Discord 8MB/25MB, WhatsApp için optimize</p>
           </div>
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <div class="text-indigo-400 flex items-center gap-1.5 text-xs font-semibold">
-              <i data-lucide="cpu" class="w-4 h-4"></i>
-              Süper Hızlı Motor
+          <div class="glass-card p-3 rounded-lg border border-white/5 space-y-1">
+            <div class="text-slate-200 flex items-center gap-1.5 text-xs font-semibold">
+              <i data-lucide="cpu" class="w-3.5 h-3.5 text-[var(--accent)]"></i>
+              Yerel & Donanım
             </div>
-            <p class="text-[11px] text-slate-400">Donanım destekli çok çekirdekli FFmpeg</p>
+            <p class="text-[11px] text-slate-400">NVIDIA NVENC, Intel QSV & CPU desteği</p>
           </div>
         </div>
 
@@ -184,27 +220,27 @@
     <section id="view-editor" class="hidden flex-1 flex flex-col space-y-4">
       
       <!-- Video Metadata Header Bar -->
-      <div class="glass-card rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 border border-white/5">
+      <div class="bg-[#111114] rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 border border-white/10">
         <div class="flex items-center gap-3">
-          <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+          <div class="p-2 rounded-md bg-[#18181c] text-slate-300 border border-white/5">
             <i data-lucide="film" class="w-4 h-4"></i>
           </div>
           <div>
             <div class="flex items-center gap-2">
               <span id="meta-filename" class="font-semibold text-sm text-white truncate max-w-[200px] sm:max-w-xs">video.mp4</span>
-              <span id="meta-codec" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-white/5">H.264</span>
+              <span id="meta-codec" class="text-[10px] px-1.5 py-0.5 rounded bg-[#18181c] text-slate-400 font-mono border border-white/5">H.264</span>
             </div>
             <div class="flex items-center gap-2 text-xs text-slate-400 font-mono">
               <span id="meta-res">1920x1080</span> &bull; 
               <span id="meta-fps">30 fps</span> &bull; 
               <span id="meta-duration">00:15</span> &bull; 
-              <span id="meta-size" class="text-indigo-300 font-semibold">14.2 MB</span>
+              <span id="meta-size" class="text-[#70a5ff] font-semibold">14.2 MB</span>
             </div>
           </div>
         </div>
 
         <div class="flex items-center gap-2">
-          <button id="btn-change-video" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-white/10 transition-colors flex items-center gap-1.5 cursor-pointer">
+          <button id="btn-change-video" class="btn-ghost flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
             <span>Yeni Video Seç</span>
           </button>
@@ -212,54 +248,59 @@
       </div>
 
       <!-- Studio Editor Grid (Left: Preview & Timeline, Right: Control Inspector) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 items-start">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 items-start">
         
         <!-- LEFT COLUMN: Video Player & Interactive Timeline (7 cols on lg) -->
         <div class="lg:col-span-7 flex flex-col space-y-4">
           
           <!-- Video Player Container -->
-          <div class="glass-panel rounded-2xl p-3 border border-white/10 shadow-2xl relative overflow-hidden">
-            <div id="video-preview-wrapper" class="video-preview-wrapper rounded-xl overflow-hidden relative flex items-center justify-center bg-black min-h-[260px] max-h-[460px]">
-              <video id="video-player" class="w-full h-full max-h-[460px] object-contain relative z-10" playsinline preload="metadata"></video>
+          <div class="bg-[#111114] rounded-lg p-3 border border-white/10 shadow-lg relative overflow-hidden">
+            <div id="video-preview-wrapper" class="video-preview-wrapper rounded-md overflow-hidden relative flex items-center justify-center bg-black min-h-[260px] max-h-[460px]">
+              <video id="video-player" class="w-full h-full max-h-[460px] object-contain relative z-10" playsinline preload="metadata" crossorigin="anonymous"></video>
               
               <!-- Secondary Overlay Video Player (For Live PIP / Multi-Layer Preview) -->
               <video id="overlay-video-player" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden z-20" muted playsinline preload="metadata"></video>
 
               <!-- Live Subtitle Overlay Previewer -->
-              <div id="player-subtitle-overlay" class="absolute bottom-6 left-6 right-6 flex items-center justify-center text-center pointer-events-none z-25 hidden">
-                <span id="player-subtitle-text" class="px-3 py-1.5 rounded-lg bg-black/80 backdrop-blur-sm text-white font-bold text-xs sm:text-sm tracking-wide shadow-xl border border-white/15 max-w-[85%] inline-block"></span>
+              <div id="player-subtitle-overlay" class="absolute bottom-6 left-6 right-6 flex items-center justify-center text-center pointer-events-none z-[35] hidden">
+                <span id="player-subtitle-text" class="px-3 py-1.5 rounded bg-black/85 backdrop-blur-sm text-white font-bold text-xs sm:text-sm tracking-wide shadow-xl border border-white/10 max-w-[85%] inline-block transition-all"></span>
+              </div>
+
+              <!-- Live Custom Text Overlays Container -->
+              <div id="player-text-overlays-container" class="absolute inset-0 pointer-events-none z-[36] overflow-hidden">
+                <!-- Dynamically active custom text overlays rendered here -->
               </div>
 
               <!-- Magnetic Canvas Snapping Guides -->
-              <div id="snap-guide-x" class="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-cyan-400 pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
-              <div id="snap-guide-y" class="absolute left-0 right-0 top-1/2 h-[1.5px] bg-cyan-400 pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
+              <div id="snap-guide-x" class="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-[#3d7eff] pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(61,126,255,0.8)]"></div>
+              <div id="snap-guide-y" class="absolute left-0 right-0 top-1/2 h-[1.5px] bg-[#3d7eff] pointer-events-none hidden z-30 shadow-[0_0_8px_rgba(61,126,255,0.8)]"></div>
 
               <!-- Interactive Transform Gizmo (CapCut / Premiere 8-Point Bounding Box) -->
-              <div id="transform-gizmo" class="absolute hidden border-2 border-indigo-500 bg-indigo-500/10 rounded-sm pointer-events-auto select-none z-30 transition-shadow shadow-[0_0_15px_rgba(99,102,241,0.4)]">
+              <div id="transform-gizmo" class="absolute hidden border border-[#3d7eff]/80 bg-transparent rounded-sm pointer-events-auto select-none z-30 transition-shadow shadow-[0_0_12px_rgba(61,126,255,0.25)]">
                 <!-- 4 Corners (Proportional Scale) -->
-                <div class="gizmo-handle absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize shadow-md hover:scale-125 transition-transform" data-handle="nw"></div>
-                <div class="gizmo-handle absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize shadow-md hover:scale-125 transition-transform" data-handle="ne"></div>
-                <div class="gizmo-handle absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nwse-resize shadow-md hover:scale-125 transition-transform" data-handle="se"></div>
-                <div class="gizmo-handle absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nesw-resize shadow-md hover:scale-125 transition-transform" data-handle="sw"></div>
+                <div class="gizmo-handle absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#3d7eff] rounded-full cursor-nwse-resize shadow-md hover:scale-125 transition-transform" data-handle="nw"></div>
+                <div class="gizmo-handle absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#3d7eff] rounded-full cursor-nesw-resize shadow-md hover:scale-125 transition-transform" data-handle="ne"></div>
+                <div class="gizmo-handle absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#3d7eff] rounded-full cursor-nwse-resize shadow-md hover:scale-125 transition-transform" data-handle="se"></div>
+                <div class="gizmo-handle absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#3d7eff] rounded-full cursor-nesw-resize shadow-md hover:scale-125 transition-transform" data-handle="sw"></div>
                 
                 <!-- 4 Edges -->
-                <div class="gizmo-handle absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ns-resize" data-handle="n"></div>
-                <div class="gizmo-handle absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ns-resize" data-handle="s"></div>
-                <div class="gizmo-handle absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ew-resize" data-handle="w"></div>
-                <div class="gizmo-handle absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-2 bg-indigo-400 border border-white rounded-sm cursor-ew-resize" data-handle="e"></div>
+                <div class="gizmo-handle absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#3d7eff] border border-white rounded-sm cursor-ns-resize" data-handle="n"></div>
+                <div class="gizmo-handle absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#3d7eff] border border-white rounded-sm cursor-ns-resize" data-handle="s"></div>
+                <div class="gizmo-handle absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-[#3d7eff] border border-white rounded-sm cursor-ew-resize" data-handle="w"></div>
+                <div class="gizmo-handle absolute top-1/2 -right-1 -translate-y-1/2 w-2 h-2 bg-[#3d7eff] border border-white rounded-sm cursor-ew-resize" data-handle="e"></div>
 
                 <!-- Top Rotation Handle -->
                 <div id="gizmo-rotate-pin" class="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-grab group">
-                  <div class="w-3.5 h-3.5 rounded-full bg-indigo-600 border border-white flex items-center justify-center text-[8px] text-white shadow hover:scale-110">
+                  <div class="w-3.5 h-3.5 rounded-full bg-[#3d7eff] border border-white flex items-center justify-center text-[8px] text-white shadow hover:scale-110">
                     <i data-lucide="rotate-cw" class="w-2.5 h-2.5"></i>
                   </div>
-                  <div class="w-[1px] h-3 bg-indigo-400"></div>
+                  <div class="w-[1px] h-3 bg-[#3d7eff]"></div>
                 </div>
 
                 <!-- Center Drag Region -->
                 <div id="gizmo-center-drag" class="absolute inset-2 cursor-move flex items-center justify-center">
-                  <div class="w-4 h-4 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center pointer-events-none opacity-40">
-                    <i data-lucide="move" class="w-2.5 h-2.5 text-indigo-300"></i>
+                  <div class="w-4 h-4 rounded-full bg-[#3d7eff]/20 border border-[#3d7eff]/40 flex items-center justify-center pointer-events-none opacity-40">
+                    <i data-lucide="move" class="w-2.5 h-2.5 text-[#3d7eff]"></i>
                   </div>
                 </div>
               </div>
@@ -268,30 +309,63 @@
               <div id="aspect-guide-overlay" class="absolute inset-0 pointer-events-none transition-all duration-300"></div>
 
               <!-- Big Play/Pause Center Indicator (Fades out) -->
-              <div id="video-center-btn" class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-all cursor-pointer group z-20">
-                <div class="w-14 h-14 rounded-full bg-emerald-600/80 group-hover:bg-emerald-600 flex items-center justify-center text-white shadow-xl shadow-emerald-600/40 transform group-hover:scale-110 transition-all">
-                  <i id="center-play-icon" data-lucide="play" class="w-7 h-7 ml-1 fill-white"></i>
+              <div id="video-center-btn" class="absolute inset-0 flex items-center justify-center bg-black/25 hover:bg-black/35 transition-all cursor-pointer group z-20">
+                <div class="w-13 h-13 rounded-full bg-black/60 group-hover:bg-[#3d7eff] border border-white/20 flex items-center justify-center text-white shadow-xl transform group-hover:scale-105 transition-all">
+                  <i id="center-play-icon" data-lucide="play" class="w-6 h-6 ml-0.5 fill-white"></i>
                 </div>
               </div>
             </div>
 
             <!-- Custom Video Transport Bar -->
-            <div class="mt-3 px-2 flex items-center justify-between gap-3 text-xs">
+            <div class="mt-2.5 px-1 flex items-center justify-between gap-3 text-xs">
               <div class="flex items-center gap-2">
-                <button id="btn-play-pause" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer">
-                  <i id="transport-play-icon" data-lucide="play" class="w-4 h-4 fill-current"></i>
+                <button id="btn-play-pause" class="btn-ghost p-2 flex items-center justify-center cursor-pointer" title="Oynat / Duraklat (Space)">
+                  <i id="transport-play-icon" data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
                 </button>
-                <div class="font-mono text-slate-300 font-medium px-2 py-1 rounded bg-slate-900 border border-white/5">
-                  <span id="player-current-time" class="text-white">00:00.0</span> / <span id="player-total-duration">00:00.0</span>
+                <div class="font-mono text-slate-300 text-xs px-2.5 py-1 rounded bg-[#09090b] border border-white/10">
+                  <span id="player-current-time" class="text-white font-semibold">00:00.0</span> / <span id="player-total-duration" class="text-slate-400">00:00.0</span>
+                </div>
+              </div>
+
+              <!-- Live Audio Preview & A/B Controls -->
+              <div class="hidden sm:flex items-center gap-2">
+                <!-- A/B Comparison Button -->
+                <button id="btn-audio-ab-toggle" class="flex items-center gap-1 px-2 py-1 rounded bg-[#18181c] hover:bg-[#222226] border border-white/10 text-[11px] font-mono text-emerald-400 transition-colors cursor-pointer select-none" title="Ses İyileştirmelerini Aç / Bypass Et (A/B Karşılaştırma)">
+                  <i data-lucide="headphones" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span id="label-audio-ab">A/B: İyileştirilmiş</span>
+                </button>
+
+                <!-- Live VU Level Meter -->
+                <div id="preview-vu-meter" class="flex items-center gap-1.5 px-2 py-1 rounded bg-[#09090b] border border-white/10 h-7" title="Canlı Ses Düzeyi (VU Metre)">
+                  <i data-lucide="activity" class="w-3 h-3 text-slate-500"></i>
+                  <div class="w-14 sm:w-20 h-2 bg-slate-800/80 rounded-full overflow-hidden relative">
+                    <div id="vu-meter-bar" class="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-500 w-0 transition-all duration-75 rounded-full"></div>
+                  </div>
+                  <span id="badge-audio-fx" class="text-[9px] font-mono px-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">FX</span>
                 </div>
               </div>
 
               <div class="flex items-center gap-2">
-                <button id="btn-player-mute" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer" title="Sesi Aç/Kapat">
-                  <i id="player-volume-icon" data-lucide="volume-2" class="w-4 h-4"></i>
+                <!-- Preview Proxy Quality Selector (N-3) -->
+                <div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#09090b] border border-white/10" title="Önizleme Çözünürlüğü / Proxy">
+                  <i data-lucide="monitor" class="w-3 h-3 text-[var(--accent)]"></i>
+                  <select id="select-preview-quality" class="bg-transparent text-slate-300 text-[11px] font-mono outline-none cursor-pointer">
+                    <option value="original" class="bg-[#18181c] text-slate-200">Orijinal</option>
+                    <option value="1080p" class="bg-[#18181c] text-slate-200">1080p</option>
+                    <option value="720p" selected class="bg-[#18181c] text-slate-200">720p (Önerilen)</option>
+                    <option value="480p" class="bg-[#18181c] text-slate-200">480p</option>
+                    <option value="360p" class="bg-[#18181c] text-slate-200">360p (Hızlı)</option>
+                  </select>
+                  <span id="proxy-loading-indicator" class="hidden">
+                    <i data-lucide="loader-2" class="w-3 h-3 text-[var(--accent)] animate-spin"></i>
+                  </span>
+                </div>
+
+                <button id="btn-player-mute" class="btn-ghost p-1.5 cursor-pointer" title="Sesi Aç/Kapat">
+                  <i id="player-volume-icon" data-lucide="volume-2" class="w-3.5 h-3.5"></i>
                 </button>
-                <button id="btn-player-fs" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer" title="Tam Ekran">
-                  <i data-lucide="maximize" class="w-4 h-4"></i>
+                <button id="btn-player-fs" class="btn-ghost p-1.5 cursor-pointer" title="Tam Ekran">
+                  <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
             </div>
@@ -303,29 +377,33 @@
         <div class="lg:col-span-5 flex flex-col space-y-4">
           
           <!-- Inspector Panel Container with Tabs -->
-          <div class="glass-panel rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col h-[520px]">
+          <div class="bg-[#111114] rounded-lg border border-white/10 shadow-lg overflow-hidden flex flex-col h-[520px]">
             
             <!-- Stüdyo Modülleri Sekme Başlığı -->
-            <div class="grid grid-cols-5 gap-1 p-1 bg-slate-900/90 rounded-2xl border border-white/5 text-xs font-semibold">
-              <button id="tab-nav-format" class="inspector-tab-btn active py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="format">
-                <i data-lucide="ratio" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <div class="grid grid-cols-6 bg-[#09090b] border-b border-white/10 text-xs font-medium">
+              <button id="tab-nav-format" class="inspector-tab-btn active py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="format">
+                <i data-lucide="ratio" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Boyut</span>
               </button>
-              <button id="tab-nav-compress" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="compress">
-                <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i>
+              <button id="tab-nav-compress" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="compress">
+                <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Sıkıştır</span>
               </button>
-              <button id="tab-nav-clip" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="clip">
-                <i data-lucide="clapperboard" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <button id="tab-nav-clip" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="clip">
+                <i data-lucide="clapperboard" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Klip</span>
               </button>
-              <button id="tab-nav-audio" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="audio">
-                <i data-lucide="volume-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <button id="tab-nav-audio" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="audio">
+                <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Ses</span>
               </button>
-              <button id="tab-nav-subtitle" class="inspector-tab-btn py-2.5 px-1 rounded-xl flex items-center justify-center gap-1 cursor-pointer" data-tab="subtitle">
-                <i data-lucide="subtitles" class="w-3.5 h-3.5 text-amber-400"></i>
+              <button id="tab-nav-subtitle" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="subtitle">
+                <i data-lucide="subtitles" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Altyazı</span>
+              </button>
+              <button id="tab-nav-text" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="text">
+                <i data-lucide="type" class="w-3.5 h-3.5"></i>
+                <span class="truncate">Metin</span>
               </button>
             </div>
 
@@ -337,88 +415,88 @@
               <!-- En-Boy Oranı Başlığı -->
               <div class="flex items-center justify-between">
                 <div>
-                  <label class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                    <i data-lucide="ratio" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="ratio" class="w-3.5 h-3.5 text-slate-400"></i>
                     Sosyal Medya & En-Boy Oranı
                   </label>
-                  <p class="text-[11px] text-slate-400">Videonun yayınlanacağı platformu seçin</p>
+                  <p class="text-[11px] text-slate-500">Videonun yayınlanacağı platformu seçin</p>
                 </div>
-                <span id="aspect-current-badge" class="text-xs font-mono text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Orijinal</span>
+                <span id="aspect-current-badge" class="text-[11px] font-mono text-[#70a5ff] font-semibold px-2 py-0.5 rounded bg-[#1c2333] border border-[#2d4875]">Orijinal</span>
               </div>
 
               <!-- Visual Aspect Ratio Cards Grid -->
               <div class="grid grid-cols-3 gap-2" id="aspect-ratio-selector">
                 <!-- Original -->
-                <div class="aspect-card selected p-2.5 rounded-xl bg-slate-900/60 border border-slate-700 flex flex-col items-center justify-center gap-1 text-center" data-ratio="original">
+                <div class="aspect-card selected p-2 rounded-lg bg-[#18181c] border border-white/10 flex flex-col items-center justify-center gap-1 text-center" data-ratio="original">
                   <div class="aspect-shape w-7 h-5 flex items-center justify-center text-[9px] text-slate-300 font-mono">Auto</div>
                   <span class="text-xs font-medium text-slate-200">Orijinal</span>
-                  <span class="text-[9px] text-slate-400">Koru</span>
+                  <span class="text-[9px] text-slate-500">Koru</span>
                 </div>
 
                 <!-- 16:9 YouTube -->
-                <div class="aspect-card p-2.5 rounded-xl bg-slate-900/60 border border-slate-700 flex flex-col items-center justify-center gap-1 text-center" data-ratio="16:9">
+                <div class="aspect-card p-2 rounded-lg bg-[#18181c] border border-white/10 flex flex-col items-center justify-center gap-1 text-center" data-ratio="16:9">
                   <div class="aspect-shape w-8 h-4.5"></div>
                   <span class="text-xs font-medium text-slate-200">16:9</span>
-                  <span class="text-[9px] text-slate-400">YouTube / PC</span>
+                  <span class="text-[9px] text-slate-500">YouTube / PC</span>
                 </div>
 
                 <!-- 9:16 TikTok / Shorts -->
-                <div class="aspect-card p-2.5 rounded-xl bg-slate-900/60 border border-slate-700 flex flex-col items-center justify-center gap-1 text-center" data-ratio="9:16">
+                <div class="aspect-card p-2 rounded-lg bg-[#18181c] border border-white/10 flex flex-col items-center justify-center gap-1 text-center" data-ratio="9:16">
                   <div class="aspect-shape w-4.5 h-7"></div>
                   <span class="text-xs font-medium text-slate-200">9:16</span>
-                  <span class="text-[9px] text-emerald-400 font-medium">TikTok / Reels</span>
+                  <span class="text-[9px] text-[#70a5ff] font-medium">TikTok / Reels</span>
                 </div>
 
                 <!-- 1:1 Instagram Square -->
-                <div class="aspect-card p-2.5 rounded-xl bg-slate-900/60 border border-slate-700 flex flex-col items-center justify-center gap-1 text-center" data-ratio="1:1">
+                <div class="aspect-card p-2 rounded-lg bg-[#18181c] border border-white/10 flex flex-col items-center justify-center gap-1 text-center" data-ratio="1:1">
                   <div class="aspect-shape w-6 h-6"></div>
                   <span class="text-xs font-medium text-slate-200">1:1</span>
-                  <span class="text-[9px] text-slate-400">Kare Post</span>
+                  <span class="text-[9px] text-slate-500">Kare Post</span>
                 </div>
 
                 <!-- 4:5 Instagram Portrait -->
-                <div class="aspect-card p-2.5 rounded-xl bg-slate-900/60 border border-slate-700 flex flex-col items-center justify-center gap-1 text-center" data-ratio="4:5">
+                <div class="aspect-card p-2 rounded-lg bg-[#18181c] border border-white/10 flex flex-col items-center justify-center gap-1 text-center" data-ratio="4:5">
                   <div class="aspect-shape w-5 h-6.5"></div>
                   <span class="text-xs font-medium text-slate-200">4:5</span>
-                  <span class="text-[9px] text-slate-400">Dikey Akış</span>
+                  <span class="text-[9px] text-slate-500">Dikey Akış</span>
                 </div>
 
                 <!-- 21:9 Ultrawide / Cinema -->
-                <div class="aspect-card p-2.5 rounded-xl bg-slate-900/60 border border-slate-700 flex flex-col items-center justify-center gap-1 text-center" data-ratio="21:9">
+                <div class="aspect-card p-2 rounded-lg bg-[#18181c] border border-white/10 flex flex-col items-center justify-center gap-1 text-center" data-ratio="21:9">
                   <div class="aspect-shape w-9 h-3.5"></div>
                   <span class="text-xs font-medium text-slate-200">21:9</span>
-                  <span class="text-[9px] text-slate-400">Sinematik</span>
+                  <span class="text-[9px] text-slate-500">Sinematik</span>
                 </div>
               </div>
 
               <!-- Fit Mode Selector (Only active when Aspect Ratio != Original) -->
-              <div id="fit-mode-container" class="glass-card rounded-xl p-3 border border-white/5 space-y-2 mt-2">
+              <div id="fit-mode-container" class="bg-[#18181c] rounded-lg p-3 border border-white/10 space-y-2 mt-2">
                 <div>
                   <label class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block">
                     Sığdırma & Çerçeve Yöntemi
                   </label>
-                  <p class="text-[10px] text-slate-400">Oran değiştiğinde boşlukların nasıl doldurulacağını belirleyin</p>
+                  <p class="text-[10px] text-slate-500">Oran değiştiğinde boşlukların nasıl doldurulacağını belirleyin</p>
                 </div>
                 <div class="grid grid-cols-3 gap-1.5">
                   <label class="fit-option cursor-pointer">
                     <input type="radio" name="fit_mode" value="pad" class="hidden peer" checked>
-                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700 peer-checked:border-emerald-500 peer-checked:bg-emerald-600/20 text-center transition-all">
-                      <span class="text-xs font-medium block text-slate-200 peer-checked:text-emerald-300">Siyah Şerit</span>
-                      <span class="text-[9px] text-slate-400 block">Bozmadan doldur</span>
+                    <div class="p-2 rounded-md bg-[#111114] border border-white/10 peer-checked:border-[#3d7eff] peer-checked:bg-[#3d7eff]/15 text-center transition-all">
+                      <span class="text-xs font-medium block text-slate-200 peer-checked:text-[#70a5ff]">Siyah Şerit</span>
+                      <span class="text-[9px] text-slate-500 block">Bozmadan doldur</span>
                     </div>
                   </label>
                   <label class="fit-option cursor-pointer">
                     <input type="radio" name="fit_mode" value="crop" class="hidden peer">
-                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700 peer-checked:border-emerald-500 peer-checked:bg-emerald-600/20 text-center transition-all">
-                      <span class="text-xs font-medium block text-slate-200 peer-checked:text-emerald-300">Akıllı Kırp</span>
-                      <span class="text-[9px] text-slate-400 block">Merkezden doldur</span>
+                    <div class="p-2 rounded-md bg-[#111114] border border-white/10 peer-checked:border-[#3d7eff] peer-checked:bg-[#3d7eff]/15 text-center transition-all">
+                      <span class="text-xs font-medium block text-slate-200 peer-checked:text-[#70a5ff]">Akıllı Kırp</span>
+                      <span class="text-[9px] text-slate-500 block">Merkezden doldur</span>
                     </div>
                   </label>
                   <label class="fit-option cursor-pointer">
                     <input type="radio" name="fit_mode" value="scale" class="hidden peer">
-                    <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-700 peer-checked:border-emerald-500 peer-checked:bg-emerald-600/20 text-center transition-all">
-                      <span class="text-xs font-medium block text-slate-200 peer-checked:text-emerald-300">Esnet</span>
-                      <span class="text-[9px] text-slate-400 block">Ekrana uzat</span>
+                    <div class="p-2 rounded-md bg-[#111114] border border-white/10 peer-checked:border-[#3d7eff] peer-checked:bg-[#3d7eff]/15 text-center transition-all">
+                      <span class="text-xs font-medium block text-slate-200 peer-checked:text-[#70a5ff]">Esnet</span>
+                      <span class="text-[9px] text-slate-500 block">Ekrana uzat</span>
                     </div>
                   </label>
                 </div>
@@ -427,11 +505,11 @@
               <div class="grid grid-cols-2 gap-3 pt-2">
                 <!-- Resolution Dropdown -->
                 <div class="space-y-1.5">
-                  <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <i data-lucide="monitor" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="monitor" class="w-3.5 h-3.5 text-slate-400"></i>
                     Çözünürlük
                   </label>
-                  <select id="select-resolution" class="w-full bg-slate-900/90 border border-slate-700/80 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none cursor-pointer">
+                  <select id="select-resolution" class="w-full bg-[#18181c] border border-white/10 focus:border-[#3d7eff] rounded-md px-3 py-2 text-xs font-mono text-white outline-none cursor-pointer">
                     <option value="original" selected>Orijinal Çözünürlük</option>
                     <option value="3840x2160">4K Ultra HD (3840x2160)</option>
                     <option value="1920x1080">Full HD 1080p</option>
@@ -443,11 +521,11 @@
 
                 <!-- Frame Rate (FPS) Dropdown -->
                 <div class="space-y-1.5">
-                  <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <i data-lucide="gauge" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="gauge" class="w-3.5 h-3.5 text-slate-400"></i>
                     Kare Hızı (FPS)
                   </label>
-                  <select id="select-fps" class="w-full bg-slate-900/90 border border-slate-700/80 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none cursor-pointer">
+                  <select id="select-fps" class="w-full bg-[#18181c] border border-white/10 focus:border-[#3d7eff] rounded-md px-3 py-2 text-xs font-mono text-white outline-none cursor-pointer">
                     <option value="original" selected>Orijinal FPS</option>
                     <option value="24">24 FPS (Sinematik)</option>
                     <option value="30">30 FPS (Standart)</option>
@@ -459,63 +537,63 @@
 
               <!-- Custom Resolution Inputs -->
               <div id="custom-res-row" class="hidden grid grid-cols-2 gap-2 pt-1">
-                <input type="number" id="custom-width" placeholder="Genişlik (px)" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none">
-                <input type="number" id="custom-height" placeholder="Yükseklik (px)" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none">
+                <input type="number" id="custom-width" placeholder="Genişlik (px)" class="bg-[#18181c] border border-white/10 rounded-md px-2.5 py-1.5 text-xs font-mono text-white outline-none">
+                <input type="number" id="custom-height" placeholder="Yükseklik (px)" class="bg-[#18181c] border border-white/10 rounded-md px-2.5 py-1.5 text-xs font-mono text-white outline-none">
               </div>
 
               <!-- Custom FPS Input -->
               <div id="custom-fps-row" class="hidden pt-1">
-                <input type="number" id="custom-fps-input" placeholder="Hedef FPS (örn: 15, 50)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none">
+                <input type="number" id="custom-fps-input" placeholder="Hedef FPS (örn: 15, 50)" class="w-full bg-[#18181c] border border-white/10 rounded-md px-2.5 py-1.5 text-xs font-mono text-white outline-none">
               </div>
             </div>
 
             <!-- TAB 2: AKILLI SIKIŞTIRMA & KALİTE -->
             <div id="tab-panel-compress" class="space-y-4 hidden">
               <div>
-                <label class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                  <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400"></i>
                   Sıkıştırma & Kodlama Yöntemi
                 </label>
-                <p class="text-[11px] text-slate-400">GPU donanımı veya boyuta/kaliteye göre kodlama seçin</p>
+                <p class="text-[11px] text-slate-500">GPU donanımı veya boyuta/kaliteye göre kodlama seçin</p>
               </div>
 
               <!-- GPU Hardware Acceleration Control Card -->
-              <div class="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 space-y-2">
+              <div class="p-3 rounded-lg bg-[#18181c] border border-white/10 space-y-2">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="font-bold text-slate-200 flex items-center gap-1.5">
-                    <i data-lucide="cpu" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span class="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <i data-lucide="cpu" class="w-3.5 h-3.5 text-slate-400"></i>
                     Donanım Hızlandırma (GPU)
                   </span>
-                  <span id="gpu-status-badge" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span id="gpu-status-badge" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-[#1c2333] text-[#70a5ff] border border-[#2d4875]">
                     NVIDIA NVENC Aktif ⚡
                   </span>
                 </div>
                 <p id="gpu-desc-text" class="text-[11px] text-slate-400">
                   NVIDIA GeForce RTX 4060 Ti donanımıyla 5-10 kat daha hızlı video kodlama.
                 </p>
-                <select id="select-hwaccel" class="w-full bg-slate-900 border border-slate-700/90 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none cursor-pointer">
+                <select id="select-hwaccel" class="w-full bg-[#111114] border border-white/10 rounded-md px-2.5 py-1.5 text-xs font-mono text-white outline-none cursor-pointer">
                   <option value="auto" selected>⚡ Otomatik (Önerilen - GPU Donanım Hızlandırma)</option>
                   <option value="cpu">💻 İşlemci (CPU x264/x265 - Yazılımsal Kodlama)</option>
                 </select>
               </div>
 
               <!-- Mode Switcher Tabs -->
-              <div class="grid grid-cols-2 p-1 rounded-xl bg-slate-900/90 border border-slate-800">
-                <button id="tab-mode-target" class="py-1.5 px-3 rounded-lg text-xs font-semibold transition-all bg-emerald-600 text-white shadow-md cursor-pointer">
+              <div class="grid grid-cols-2 p-1 rounded-lg bg-[#0e0e11] border border-white/10">
+                <button id="tab-mode-target" class="py-1.5 px-3 rounded-md text-xs font-semibold transition-all bg-[#3d7eff] text-white shadow-sm cursor-pointer">
                   🎯 Hedef Dosya Boyutu (MB)
                 </button>
-                <button id="tab-mode-crf" class="py-1.5 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all cursor-pointer">
+                <button id="tab-mode-crf" class="py-1.5 px-3 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition-all cursor-pointer">
                   💎 Akıllı Kalite (CRF)
                 </button>
               </div>
 
               <!-- PANEL A: TARGET FILE SIZE -->
               <div id="panel-target-size" class="space-y-3">
-                <div class="glass-card rounded-xl p-3.5 border border-white/5 space-y-2">
+                <div class="bg-[#18181c] rounded-lg p-3 border border-white/10 space-y-2">
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-300 font-medium">İstediğiniz Maksimum Boyut:</span>
                     <div class="flex items-center gap-1">
-                      <input type="number" id="input-target-mb" step="0.5" min="0.5" max="500" value="8.0" class="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs font-mono text-right text-emerald-300 font-bold outline-none">
+                      <input type="number" id="input-target-mb" step="0.5" min="0.5" max="500" value="8.0" class="w-16 bg-[#111114] border border-white/10 rounded px-1.5 py-0.5 text-xs font-mono text-right text-[#70a5ff] font-bold outline-none">
                       <span class="font-mono text-slate-400">MB</span>
                     </div>
                   </div>
@@ -526,40 +604,40 @@
                 <div class="space-y-1.5">
                   <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Hızlı Platform Şablonları:</span>
                   <div class="flex flex-wrap gap-1.5">
-                    <button class="preset-target-btn px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium hover:text-white transition-all flex items-center gap-1 cursor-pointer" data-mb="8">
+                    <button class="preset-target-btn btn-ghost" data-mb="8">
                       <span>Discord 8 MB</span>
                     </button>
-                    <button class="preset-target-btn px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium hover:text-white transition-all flex items-center gap-1 cursor-pointer" data-mb="25">
+                    <button class="preset-target-btn btn-ghost" data-mb="25">
                       <span>Discord 25 MB</span>
                     </button>
-                    <button class="preset-target-btn px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium hover:text-white transition-all flex items-center gap-1 cursor-pointer" data-mb="16">
+                    <button class="preset-target-btn btn-ghost" data-mb="16">
                       <span>WhatsApp 16 MB</span>
                     </button>
-                    <button class="preset-target-btn px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium hover:text-white transition-all flex items-center gap-1 cursor-pointer" data-mb="10">
+                    <button class="preset-target-btn btn-ghost" data-mb="10">
                       <span>E-Posta 10 MB</span>
                     </button>
-                    <button class="preset-target-btn px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium hover:text-white transition-all flex items-center gap-1 cursor-pointer" data-mb="5">
+                    <button class="preset-target-btn btn-ghost" data-mb="5">
                       <span>Hızlı Web 5 MB</span>
                     </button>
                   </div>
                 </div>
 
                 <!-- Savings Calculator Badge -->
-                <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs">
+                <div class="p-3 rounded-lg bg-[#141d2e] border border-[#233a60] flex items-center justify-between text-xs">
                   <div class="flex items-center gap-2">
-                    <i data-lucide="trending-down" class="w-4 h-4 text-emerald-400"></i>
+                    <i data-lucide="trending-down" class="w-4 h-4 text-[#70a5ff]"></i>
                     <span class="text-slate-300">Tahmini Dosya Küçülmesi:</span>
                   </div>
-                  <span id="target-savings-percentage" class="font-bold text-emerald-300 font-mono text-sm">-45%</span>
+                  <span id="target-savings-percentage" class="font-bold text-[#70a5ff] font-mono text-sm">-45%</span>
                 </div>
               </div>
 
               <!-- PANEL B: SMART QUALITY (CRF) -->
               <div id="panel-crf" class="hidden space-y-3">
-                <div class="glass-card rounded-xl p-3.5 border border-white/5 space-y-2">
+                <div class="bg-[#18181c] rounded-lg p-3 border border-white/10 space-y-2">
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-slate-300 font-medium">Görsel Kalite Oranı:</span>
-                    <span id="crf-value-badge" class="font-mono text-emerald-400 font-bold">23 (Yüksek Kalite)</span>
+                    <span id="crf-value-badge" class="font-mono text-[#70a5ff] font-bold">23 (Yüksek Kalite)</span>
                   </div>
                   <input type="range" id="slider-crf" min="16" max="36" step="1" value="23" class="w-full">
                   <div class="flex justify-between text-[10px] text-slate-500 font-mono">
@@ -764,6 +842,15 @@
                       </div>
                       <input type="range" id="slider-clip-rotation" min="-180" max="180" step="1" value="0" class="w-full">
                     </div>
+
+                    <!-- Opacity Slider (E-5) -->
+                    <div class="space-y-1.5 pt-1 border-t border-white/5">
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="text-[11px] text-slate-400">Opaklık / Saydamlık:</span>
+                        <span id="inspector-opacity-badge" class="font-mono text-indigo-300 font-bold text-xs bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">%100</span>
+                      </div>
+                      <input type="range" id="slider-clip-opacity" min="0" max="100" step="5" value="100" class="w-full">
+                    </div>
                   </div>
                 </div>
 
@@ -778,6 +865,20 @@
                   </div>
 
                   <div id="accordion-body-audio" class="space-y-3 pt-1">
+                    <!-- Canlı Ses Önizleme & A/B Rozeti -->
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-[#14231e] border border-emerald-500/20">
+                      <div class="flex items-center gap-1.5">
+                        <i data-lucide="headphones" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <div>
+                          <span class="text-[11px] font-medium text-emerald-300 block">Canlı Önizleme DSP</span>
+                          <span id="inspector-audio-fx-summary" class="text-[9px] text-slate-400 block">Filtreler önizlemede aktif</span>
+                        </div>
+                      </div>
+                      <button id="btn-inspector-audio-ab" class="px-2 py-0.5 rounded bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-[10px] font-mono text-emerald-200 transition-colors cursor-pointer" title="Orijinal ve İyileştirilmiş sesi anlık karşılaştır">
+                        A/B Karşılaştır
+                      </button>
+                    </div>
+
                     <!-- Denoise Toggle -->
                     <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-2">
                       <div class="flex items-center justify-between">
@@ -799,16 +900,27 @@
                       </div>
                     </div>
 
-                    <!-- Loudnorm Toggle -->
-                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
-                      <div>
-                        <span class="text-xs font-medium text-white block">Ses Seviyesini Eşitle (Normalizasyon)</span>
-                        <span class="text-[10px] text-slate-400 block">EBU R128 (-14 LUFS YouTube/Reels standardı)</span>
+                    <!-- Loudnorm Toggle & LUFS Preset (E-6) -->
+                    <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-2">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <span class="text-xs font-medium text-white block">Ses Seviyesini Eşitle (Normalizasyon)</span>
+                          <span class="text-[10px] text-slate-400 block">Yayın ve sosyal medya standartlarına dengeler</span>
+                        </div>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" id="check-clip-loudnorm" class="sr-only peer">
+                          <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+                        </label>
                       </div>
-                      <label class="inline-flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="check-clip-loudnorm" class="sr-only peer">
-                        <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 relative"></div>
-                      </label>
+                      <!-- Target LUFS Presets -->
+                      <div id="loudnorm-preset-container" class="space-y-1 pt-1 hidden">
+                        <span class="text-[10px] text-slate-400 font-medium block">Hedef Yayın Standardı:</span>
+                        <div class="grid grid-cols-3 gap-1">
+                          <button class="lufs-preset-btn px-1.5 py-1 rounded bg-emerald-600 text-white text-[10px] font-mono cursor-pointer transition-colors" data-lufs="-14">-14 LUFS (YouTube)</button>
+                          <button class="lufs-preset-btn px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer transition-colors" data-lufs="-16">-16 LUFS (Podcast)</button>
+                          <button class="lufs-preset-btn px-1.5 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-mono hover:bg-slate-700 cursor-pointer transition-colors" data-lufs="-23">-23 LUFS (TV/Sinema)</button>
+                        </div>
+                      </div>
                     </div>
 
                     <!-- RNNoise Deep Learning Voice Isolation -->
@@ -844,11 +956,31 @@
             <!-- TAB 4: SES AYARLARI -->
             <div id="tab-panel-audio" class="space-y-4 hidden">
               <div>
-                <label class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                  <i data-lucide="volume-2" class="w-3.5 h-3.5 text-indigo-400"></i>
-                  Ses Seçenekleri
+                <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="volume-2" class="w-3.5 h-3.5 text-slate-400"></i>
+                  Ses & Müzik Seçenekleri
                 </label>
-                <p class="text-[11px] text-slate-400">Videonun sesini kapatabilir veya kalitesini ayarlayabilirsiniz</p>
+                <p class="text-[11px] text-slate-500">Arka plan müziği ekleyebilir veya videonun sesini yönetebilirsiniz</p>
+              </div>
+
+              <!-- Harici Müzik / Ses İçe Aktarma Kartı -->
+              <div class="p-3 rounded-lg bg-[#18181c] border border-white/10 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="space-y-0.5">
+                    <span class="text-xs font-semibold text-white block flex items-center gap-1.5">
+                      <i data-lucide="music" class="w-3.5 h-3.5 text-[#3d7eff]"></i>
+                      Arka Plan Müziği & Harici Ses
+                    </span>
+                    <span class="text-[11px] text-slate-400 block">Zaman çizgisine MP3, WAV veya M4A ekleyin</span>
+                  </div>
+                  <button id="btn-tab-import-audio" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1 cursor-pointer">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                    <span>Ses Yükle</span>
+                  </button>
+                </div>
+                <p class="text-[10px] text-slate-500">
+                  Dosyayı doğrudan zaman çizelgesindeki ses (A) kanalına da sürükleyip bırakabilirsiniz.
+                </p>
               </div>
 
               <!-- Remove Audio Card -->
@@ -936,6 +1068,84 @@
                 </div>
               </div>
 
+              <!-- Subtitle Typography & Styling Card -->
+              <div class="p-3 rounded-xl bg-slate-900/90 border border-white/5 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <i data-lucide="palette" class="w-3.5 h-3.5 text-amber-400"></i>
+                    Altyazı Tipografi & Stil Formu
+                  </span>
+                  <span id="subtitle-preset-badge" class="text-[10px] font-mono text-amber-400 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">Kutucuklu</span>
+                </div>
+
+                <!-- Form / Preset Selector -->
+                <div>
+                  <label class="text-[10px] text-slate-400 block mb-1.5">Görsel Stil Şablonu:</label>
+                  <div class="grid grid-cols-3 gap-1.5" id="subtitle-presets-grid">
+                    <button type="button" class="subtitle-preset-btn active px-2 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-[11px] text-white font-medium hover:bg-amber-500/30 transition text-center" data-preset="box">
+                      Kutucuklu
+                    </button>
+                    <button type="button" class="subtitle-preset-btn px-2 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-[11px] text-slate-300 font-medium hover:bg-slate-700 transition text-center" data-preset="outline">
+                      Konturlu
+                    </button>
+                    <button type="button" class="subtitle-preset-btn px-2 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-[11px] text-amber-300 font-medium hover:bg-slate-700 transition text-center" data-preset="yellow_pop">
+                      TikTok Sarı
+                    </button>
+                    <button type="button" class="subtitle-preset-btn px-2 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-[11px] text-slate-300 font-medium hover:bg-slate-700 transition text-center" data-preset="shadow">
+                      Gölge
+                    </button>
+                    <button type="button" class="subtitle-preset-btn px-2 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-[11px] text-slate-300 font-medium hover:bg-slate-700 transition text-center col-span-2" data-preset="bar">
+                      Sinematik Şerit
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Font & Font Size Row -->
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Yazı Tipi (Font):</label>
+                    <select id="subtitle-font-family" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white outline-none cursor-pointer">
+                      <option value="Arial" selected>Arial</option>
+                      <option value="Montserrat">Montserrat</option>
+                      <option value="Impact">Impact (Bold)</option>
+                      <option value="Roboto">Roboto</option>
+                      <option value="Poppins">Poppins</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-[10px] text-slate-400">Boyut:</label>
+                      <span id="subtitle-size-val" class="text-[10px] font-mono text-amber-400">22px</span>
+                    </div>
+                    <input type="range" id="subtitle-font-size" min="14" max="44" value="22" step="1" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+                  </div>
+                </div>
+
+                <!-- Color & Position Row -->
+                <div class="grid grid-cols-2 gap-2 items-center">
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Yazı Rengi:</label>
+                    <div class="flex items-center gap-1.5">
+                      <input type="color" id="subtitle-color-picker" value="#ffffff" class="w-7 h-7 rounded border border-white/10 bg-transparent cursor-pointer">
+                      <div class="flex items-center gap-1">
+                        <button type="button" class="w-4 h-4 rounded-full bg-white border border-white/20 subtitle-color-quick cursor-pointer" data-color="#ffffff" title="Beyaz"></button>
+                        <button type="button" class="w-4 h-4 rounded-full bg-yellow-400 border border-white/20 subtitle-color-quick cursor-pointer" data-color="#ffeb3b" title="Sarı"></button>
+                        <button type="button" class="w-4 h-4 rounded-full bg-cyan-400 border border-white/20 subtitle-color-quick cursor-pointer" data-color="#00e5ff" title="Açık Mavi"></button>
+                        <button type="button" class="w-4 h-4 rounded-full bg-emerald-400 border border-white/20 subtitle-color-quick cursor-pointer" data-color="#00e676" title="Yeşil"></button>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">Dikey Konum:</label>
+                    <div class="grid grid-cols-3 gap-1" id="subtitle-position-group">
+                      <button type="button" class="subtitle-pos-btn px-1.5 py-1 rounded bg-slate-800 text-[10px] text-slate-300 hover:bg-slate-700 transition text-center" data-pos="top">Üst</button>
+                      <button type="button" class="subtitle-pos-btn px-1.5 py-1 rounded bg-slate-800 text-[10px] text-slate-300 hover:bg-slate-700 transition text-center" data-pos="middle">Orta</button>
+                      <button type="button" class="subtitle-pos-btn active px-1.5 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-[10px] text-white transition text-center" data-pos="bottom">Alt</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Subtitle Results Container -->
               <div id="subtitle-results-container" class="space-y-3 hidden">
                 <!-- Action bar: Burn-in toggle & download buttons -->
@@ -964,26 +1174,58 @@
               </div>
             </div>
 
+            <!-- TAB 6: TEXT / METİN & BAŞLIK OVERLAYS -->
+            <div id="tab-panel-text" class="space-y-4 hidden">
+              <!-- Header -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="type" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    Videoya Metin & Başlık Ekle
+                  </label>
+                  <p class="text-[11px] text-slate-500">Zaman ayarlı başlıklar ve dinamik yazılar ekleyin</p>
+                </div>
+                <button id="btn-add-text-overlay" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                  <span>Metin Ekle</span>
+                </button>
+              </div>
+
+              <!-- Text Overlays List Container -->
+              <div id="text-overlays-list" class="space-y-3">
+                <!-- Dynamically populated list of text overlay editors or empty state -->
+                <div id="text-overlays-empty" class="p-6 rounded-xl bg-slate-900/60 border border-white/5 text-center space-y-2">
+                  <div class="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                    <i data-lucide="type" class="w-5 h-5"></i>
+                  </div>
+                  <p class="text-xs text-slate-300 font-medium">Henüz metin eklenmedi</p>
+                  <p class="text-[11px] text-slate-500 max-w-xs mx-auto">
+                    Videonun istediğiniz bir saniyesinde ekranda belirecek başlık, alt yazı veya açıklama eklemek için "Metin Ekle" butonuna basın.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             </div> <!-- End Scrollable Tab Content Container -->
 
             <!-- Bottom Live Settings Summary & Action Button Bar -->
-            <div class="p-3.5 bg-slate-900/95 border-t border-white/10 space-y-2.5 flex-shrink-0">
+            <div class="p-3 bg-[#09090b] border-t border-white/10 space-y-2 flex-shrink-0">
               <!-- Live Summary Box -->
-              <div class="p-2 rounded-xl bg-slate-800/80 border border-white/5 flex items-center justify-between text-xs text-slate-300 gap-2">
+              <div class="p-2 rounded-md bg-[#18181c] border border-white/10 flex items-center justify-between text-xs text-slate-300 gap-2">
                 <div class="flex items-center gap-2 truncate flex-1">
-                  <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-[#70a5ff] flex-shrink-0"></i>
                   <span id="export-summary-text" class="truncate font-mono text-[11px] text-slate-200">
                     Orijinal Çözünürlük • H.264 • Discord 8 MB Hedefi
                   </span>
                 </div>
-                <span id="summary-gpu-chip" class="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono font-bold flex-shrink-0 flex items-center gap-1">
+                <span id="summary-gpu-chip" class="px-2 py-0.5 rounded bg-[#1c2333] border border-[#2d4875] text-[#70a5ff] text-[10px] font-mono font-bold flex-shrink-0 flex items-center gap-1">
                   <i data-lucide="zap" class="w-3 h-3 fill-current"></i>
                   <span>NVENC GPU</span>
                 </span>
               </div>
 
-              <!-- Big Gradient Action Button -->
-              <button id="btn-start-process" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-500 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-bold text-xs tracking-wide shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/50 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <!-- Primary Action Button -->
+              <button id="btn-start-process" class="btn-primary w-full py-3 text-xs tracking-wide shadow-sm flex items-center justify-center gap-2 cursor-pointer">
                 <i data-lucide="zap" class="w-4 h-4 fill-white"></i>
                 <span>Videoyu İşle ve Dönüştür</span>
               </button>
@@ -996,81 +1238,90 @@
       <!-- ================================================================= -->
       <!-- CAPCUT NLE MULTI-TRACK TIMELINE STUDIO (FULL WIDTH)               -->
       <!-- ================================================================= -->
-      <div id="capcut-timeline-studio" class="w-full glass-panel rounded-2xl border border-white/10 shadow-2xl p-4 space-y-3 select-none">
+      <div id="capcut-timeline-studio" class="w-full bg-[#111114] rounded-lg border border-white/10 shadow-lg p-3 space-y-2.5 select-none">
         
         <!-- 1. Timeline Action Toolbar -->
-        <div class="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-white/5 text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-white/10 text-xs">
           <!-- Left Tool Group: Editing Actions -->
           <div class="flex items-center gap-1.5 flex-wrap">
             <!-- Razor Split Button -->
-            <button id="btn-split-clip" class="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 hover:border-indigo-400 transition-all flex items-center gap-1.5 font-semibold cursor-pointer active:scale-95 shadow-sm" title="İmleçten İkiye Böl (Kısayol: S)">
-              <i data-lucide="scissors" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <button id="btn-split-clip" class="btn-ghost flex items-center gap-1.5 font-semibold text-slate-200 cursor-pointer" title="İmleçten İkiye Böl (Kısayol: S)">
+              <i data-lucide="scissors" class="w-3.5 h-3.5 text-[#3d7eff]"></i>
               <span>Böl</span>
-              <kbd class="px-1.5 py-0.5 text-[9px] bg-slate-800 rounded border border-white/10 font-mono text-slate-300 font-bold">S</kbd>
+              <kbd class="px-1.5 py-0.2 text-[9px] bg-[#09090b] rounded border border-white/10 font-mono text-slate-400 font-bold">S</kbd>
             </button>
 
             <!-- Delete Selected Clip Button -->
-            <button id="btn-delete-clip" class="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 transition-all flex items-center gap-1.5 font-semibold cursor-pointer active:scale-95 opacity-50 pointer-events-none" title="Seçili Klibi Sil (Kısayol: Delete)">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+            <button id="btn-delete-clip" class="btn-danger flex items-center gap-1.5 font-semibold cursor-pointer opacity-50 pointer-events-none" title="Seçili Klibi Sil (Kısayol: Delete)">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               <span>Sil</span>
-              <kbd class="px-1.5 py-0.5 text-[9px] bg-slate-800 rounded border border-white/10 font-mono text-slate-300 font-bold">Del</kbd>
+              <kbd class="px-1.5 py-0.2 text-[9px] bg-[#09090b] rounded border border-white/10 font-mono text-slate-400 font-bold">Del</kbd>
             </button>
 
             <!-- Undo Button -->
-            <button id="btn-undo-timeline" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/5 transition-colors cursor-pointer" title="Geri Al (Ctrl+Z)">
+            <button id="btn-undo-timeline" class="btn-ghost p-1.5 cursor-pointer" title="Geri Al (Ctrl+Z)">
               <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
             </button>
 
             <div class="h-4 w-[1px] bg-white/10 mx-1"></div>
 
             <!-- Magnet / Snapping Toggle -->
-            <button id="btn-toggle-snap" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Akıllı Mıknatıs (Snapping) Aç/Kapat">
-              <i data-lucide="magnet" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <button id="btn-toggle-snap" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer" title="Akıllı Mıknatıs (Snapping) Aç/Kapat">
+              <i data-lucide="magnet" class="w-3.5 h-3.5 text-[#3d7eff]"></i>
               <span id="snap-status-text">Mıknatıs: Açık</span>
             </button>
 
             <!-- Ripple Delete Toggle -->
-            <button id="btn-toggle-ripple" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Boşlukları Otomatik Kapat (Ripple)">
-              <i data-lucide="minimize-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <button id="btn-toggle-ripple" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer" title="Boşlukları Otomatik Kapat (Ripple)">
+              <i data-lucide="minimize-2" class="w-3.5 h-3.5 text-[#3d7eff]"></i>
               <span id="ripple-status-text">Boşluğu Kapat: Açık</span>
             </button>
 
             <!-- Smart Silence Removal Button -->
-            <button id="btn-smart-silence" class="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/30 transition-all flex items-center gap-1.5 font-semibold cursor-pointer active:scale-95 shadow-sm" title="Sessizlikleri Tara ve Budala (Auto Jump Cut)">
+            <button id="btn-smart-silence" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer" title="Sessizlikleri Tara ve Budala (Auto Jump Cut)">
               <i data-lucide="scissors-line-dashed" class="w-3.5 h-3.5 text-amber-400"></i>
               <span>Sessizlik Budama</span>
             </button>
 
             <!-- Reset Timeline -->
-            <button id="btn-reset-timeline" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-white/5 transition-colors cursor-pointer" title="Tüm Klipleri Sıfırla & Birleştir">
+            <button id="btn-reset-timeline" class="btn-ghost p-1.5 cursor-pointer" title="Tüm Klipleri Sıfırla & Birleştir">
               <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
             </button>
 
             <div class="h-4 w-[1px] bg-white/10 mx-1"></div>
 
-            <!-- Add Track Buttons -->
-            <button id="btn-add-video-track" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/25 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Yeni Video İzi Ekle (V+)">
+            <!-- Add Track & Media Import Buttons -->
+            <button id="btn-add-video-track" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer" title="Yeni Video İzi Ekle (V+)">
               <i data-lucide="plus" class="w-3.5 h-3.5"></i>
               <span>Video İzi</span>
             </button>
-            <button id="btn-add-audio-track" class="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/25 transition-all flex items-center gap-1.5 font-medium cursor-pointer" title="Yeni Ses İzi Ekle (A+)">
+            <button id="btn-add-text-track" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer text-indigo-400 hover:text-indigo-300" title="Yeni Metin İzi Ekle (T+)">
+              <i data-lucide="type" class="w-3.5 h-3.5"></i>
+              <span>Metin İzi</span>
+            </button>
+            <button id="btn-add-audio-track" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer" title="Yeni Ses İzi Ekle (A+)">
               <i data-lucide="plus" class="w-3.5 h-3.5"></i>
               <span>Ses İzi</span>
             </button>
+            <button id="btn-import-audio" class="btn-ghost flex items-center gap-1.5 font-medium cursor-pointer text-[#70a5ff] hover:text-white hover:border-[#3d7eff]" title="Bilgisayardan Müzik veya Ses Dosyası Ekle (.mp3, .wav, .m4a)">
+              <i data-lucide="music" class="w-3.5 h-3.5 text-[#3d7eff]"></i>
+              <span>Müzik Ekle</span>
+            </button>
+            <input type="file" id="audio-file-input" accept="audio/*,.mp3,.wav,.aac,.m4a,.ogg,.flac" class="hidden">
           </div>
 
           <!-- Right Tool Group: Zoom, Timecode, Shortcuts -->
           <div class="flex items-center gap-3">
             <!-- Zoom Controls -->
-            <div class="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-xl border border-white/5">
+            <div class="flex items-center gap-1.5 bg-[#18181c] px-2 py-1 rounded-md border border-white/10">
               <button id="btn-zoom-out" class="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Uzaklaştır">
                 <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
               </button>
-              <input type="range" id="timeline-zoom-slider" min="15" max="150" value="45" class="w-20 sm:w-24 accent-indigo-500 cursor-pointer" title="Zaman Çizelgesi Ölçeği (Zoom)">
+              <input type="range" id="timeline-zoom-slider" min="15" max="150" value="45" class="w-20 sm:w-24 accent-[#3d7eff] cursor-pointer" title="Zaman Çizelgesi Ölçeği (Zoom)">
               <button id="btn-zoom-in" class="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Yakınlaştır">
                 <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
               </button>
-              <button id="btn-zoom-fit" class="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300 hover:text-white border border-white/5 transition-colors cursor-pointer" title="Tüm Klipleri Ekrana Sığdır">
+              <button id="btn-zoom-fit" class="px-2 py-0.5 text-[10px] rounded bg-[#111114] text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer" title="Tüm Klipleri Ekrana Sığdır">
                 Sığdır
               </button>
             </div>
@@ -1078,31 +1329,31 @@
             <!-- Duration Badge -->
             <div class="flex items-center gap-1.5 font-mono text-xs">
               <span class="text-slate-400 hidden sm:inline">Net Süre:</span>
-              <span id="trim-duration-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              <span id="trim-duration-badge" class="px-2 py-0.5 rounded bg-[#1c2333] text-[#70a5ff] font-bold border border-[#2d4875]">
                 00:00.0
               </span>
-              <span id="clips-count-badge" class="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+              <span id="clips-count-badge" class="px-2 py-0.5 rounded bg-[#18181c] text-slate-300 font-bold border border-white/10">
                 1 Klip
               </span>
             </div>
 
             <!-- Shortcuts Modal Trigger -->
-            <button id="btn-open-shortcuts" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 hover:border-amber-500/40 transition-colors flex items-center gap-1.5 cursor-pointer" title="Klavye Kısayolları Rehberi">
-              <i data-lucide="keyboard" class="w-3.5 h-3.5 text-amber-400"></i>
+            <button id="btn-open-shortcuts" class="btn-ghost flex items-center gap-1.5 cursor-pointer" title="Klavye Kısayolları Rehberi">
+              <i data-lucide="keyboard" class="w-3.5 h-3.5 text-slate-400"></i>
               <span class="hidden md:inline">Kısayollar</span>
             </button>
           </div>
         </div>
 
         <!-- 2. CapCut Multi-Track Canvas Body -->
-        <div id="timeline-studio-body" class="flex border border-white/10 rounded-xl overflow-hidden bg-slate-950/90 relative">
+        <div id="timeline-studio-body" class="flex border border-white/10 rounded-md overflow-hidden bg-[#09090b] relative">
           
           <!-- Fixed Left Track Headers Column -->
-          <div class="w-36 sm:w-40 flex-shrink-0 bg-slate-900 border-r border-slate-800 z-20 flex flex-col select-none">
+          <div class="w-36 sm:w-40 flex-shrink-0 bg-[#0e0e11] border-r border-white/10 z-20 flex flex-col select-none">
             <!-- Ruler Header Box -->
-            <div class="h-8 border-b border-white/10 flex items-center justify-between px-2 text-[10px] font-mono text-slate-400 bg-slate-900/90">
+            <div class="h-8 border-b border-white/10 flex items-center justify-between px-2 text-[10px] font-mono text-slate-400 bg-[#0e0e11]">
               <span class="font-bold flex items-center gap-1">
-                <i data-lucide="clock" class="w-3 h-3 text-indigo-400"></i>
+                <i data-lucide="clock" class="w-3 h-3 text-[#3d7eff]"></i>
                 ZAMAN
               </span>
             </div>
@@ -1120,7 +1371,7 @@
             <div id="timeline-canvas" class="relative min-w-full h-full">
               
               <!-- 1. Ruler Row (Click / Drag to scrub playhead) -->
-              <div id="timeline-ruler" class="h-8 border-b border-white/10 bg-slate-900/80 relative cursor-pointer overflow-hidden" title="İmleci konumlandırmak için cetvele tıklayın veya sürükleyin">
+              <div id="timeline-ruler" class="h-8 border-b border-white/10 bg-[#0e0e11] relative cursor-pointer overflow-hidden" title="İmleci konumlandırmak için cetvele tıklayın veya sürükleyin">
                 <canvas id="ruler-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
               </div>
 
@@ -1148,13 +1399,13 @@
               <!-- 3b. Range Selection Highlight & Floating Action Bar -->
               <div id="timeline-range-overlay" class="absolute top-0 bottom-0 pointer-events-none z-20 hidden" style="left: 0px; width: 0px;">
                 <!-- Translucent range fill -->
-                <div class="absolute inset-0 bg-indigo-500/20 border-x-2 border-indigo-400 backdrop-blur-[0.5px]"></div>
+                <div class="absolute inset-0 bg-[#3d7eff]/20 border-x-2 border-[#3d7eff] backdrop-blur-[0.5px]"></div>
 
                 <!-- Floating Range Action Toolbar inside Ruler -->
-                <div id="timeline-range-toolbar" class="absolute top-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 py-0.5 bg-slate-900/95 border border-indigo-500/60 rounded-lg shadow-xl shadow-indigo-950/90 pointer-events-auto text-[11px] whitespace-nowrap z-50">
-                  <span id="range-duration-badge" class="font-mono font-bold text-indigo-300">00:00.00</span>
+                <div id="timeline-range-toolbar" class="absolute top-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 py-0.5 bg-[#141418] border border-white/15 rounded-md shadow-xl pointer-events-auto text-[11px] whitespace-nowrap z-50">
+                  <span id="range-duration-badge" class="font-mono font-bold text-[#70a5ff]">00:00.00</span>
                   <div class="h-3 w-[1px] bg-white/20"></div>
-                  <button id="btn-range-trim" class="px-1.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[10px] transition-colors flex items-center gap-1 cursor-pointer" title="Yalnızca bu aralığı tut (Dışındakileri Kırp)">
+                  <button id="btn-range-trim" class="px-1.5 py-0.5 rounded bg-[#3d7eff] hover:bg-[#5591ff] text-white font-medium text-[10px] transition-colors flex items-center gap-1 cursor-pointer" title="Yalnızca bu aralığı tut (Dışındakileri Kırp)">
                     <span>✂️ Kırp</span>
                   </button>
                   <button id="btn-range-delete" class="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-medium text-[10px] transition-colors flex items-center gap-1 cursor-pointer" title="Bu aralığı tüm kanallardan sil ve boşluğu kapat (Ripple Delete)">
@@ -1163,29 +1414,20 @@
                   <button id="btn-range-split" class="px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium text-[10px] transition-colors flex items-center gap-1 cursor-pointer" title="Klipleri bu aralığın iki ucundan böl">
                     <span>⚡ Böl</span>
                   </button>
-                  <button id="btn-range-clear" class="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Aralığı kapat (Esc / X)">
+                  <button id="btn-range-clear" class="p-0.5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Aralığı kapat (Esc / X)">
                     ✕
                   </button>
                 </div>
 
                 <!-- In-Point Marker Handle on Left Border -->
-                <div id="range-handle-in" class="absolute top-0 -translate-x-1/2 w-4 h-7 bg-indigo-500 hover:bg-indigo-400 rounded-sm shadow-md cursor-ew-resize pointer-events-auto flex items-center justify-center z-40 text-white text-[10px] font-mono font-bold select-none" title="Başlangıç sınırını sürükleyin">[</div>
+                <div id="range-handle-in" class="absolute top-0 -translate-x-1/2 w-4 h-7 bg-[#3d7eff] hover:bg-[#5591ff] rounded-sm shadow-md cursor-ew-resize pointer-events-auto flex items-center justify-center z-40 text-white text-[10px] font-mono font-bold select-none" title="Başlangıç sınırını sürükleyin">[</div>
 
                 <!-- Out-Point Marker Handle on Right Border -->
-                <div id="range-handle-out" class="absolute top-0 right-0 translate-x-1/2 w-4 h-7 bg-indigo-500 hover:bg-indigo-400 rounded-sm shadow-md cursor-ew-resize pointer-events-auto flex items-center justify-center z-40 text-white text-[10px] font-mono font-bold select-none" title="Bitiş sınırını sürükleyin">]</div>
+                <div id="range-handle-out" class="absolute top-0 right-0 translate-x-1/2 w-4 h-7 bg-[#3d7eff] hover:bg-[#5591ff] rounded-sm shadow-md cursor-ew-resize pointer-events-auto flex items-center justify-center z-40 text-white text-[10px] font-mono font-bold select-none" title="Bitiş sınırını sürükleyin">]</div>
               </div>
 
               <!-- 4. Snapping Guideline (Cyan vertical line when aligned) -->
-              <div id="timeline-snap-guide" class="absolute top-0 bottom-0 w-[1px] bg-cyan-400 shadow-[0_0_8px_#22d3ee] pointer-events-none z-25 hidden" style="left: 0px;"></div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-              <!-- 4. Snapping Guideline (Cyan vertical line when aligned) -->
-              <div id="timeline-snap-guide" class="absolute top-0 bottom-0 w-[1px] bg-cyan-400 shadow-[0_0_8px_#22d3ee] pointer-events-none z-25 hidden" style="left: 0px;"></div>
+              <div id="timeline-snap-guide" class="absolute top-0 bottom-0 w-[1px] bg-[#3d7eff] shadow-[0_0_8px_#3d7eff] pointer-events-none z-25 hidden" style="left: 0px;"></div>
 
             </div>
 
@@ -1222,62 +1464,62 @@
     <!-- STATE 3: LIVE PROGRESS SCREEN                                     -->
     <!-- ================================================================= -->
     <section id="view-progress" class="hidden flex-1 flex flex-col justify-center items-center py-8">
-      <div class="max-w-xl w-full glass-panel rounded-3xl p-8 sm:p-10 border border-emerald-500/30 shadow-2xl space-y-6 text-center glow-accent relative overflow-hidden">
+      <div class="max-w-xl w-full bg-[#111114] rounded-lg p-6 sm:p-8 border border-white/10 shadow-xl space-y-5 text-center relative overflow-hidden">
         
-        <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-mono border border-emerald-500/30">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <div class="space-y-1.5">
+          <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#1c2333] text-[#70a5ff] text-[11px] font-mono border border-[#2d4875]">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#3d7eff] animate-ping"></span>
             Arka Planda Kodlanıyor
           </div>
-          <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Video İşleniyor...</h2>
-          <p id="progress-job-id" class="text-xs font-mono text-slate-400">İşlem Kimliği: Başlatılıyor...</p>
+          <h2 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Video İşleniyor...</h2>
+          <p id="progress-job-id" class="text-xs font-mono text-slate-500">İşlem Kimliği: Başlatılıyor...</p>
         </div>
 
         <!-- Big Progress Metric -->
-        <div class="space-y-3 py-2">
-          <div class="text-5xl sm:text-6xl font-black font-mono tracking-tight text-gradient">
+        <div class="space-y-2 py-1">
+          <div class="text-5xl sm:text-6xl font-bold font-mono tracking-tight text-white">
             <span id="progress-percent-large">0</span>%
           </div>
           
           <!-- Animated Progress Bar -->
-          <div class="w-full bg-slate-900 rounded-full h-3.5 p-0.5 border border-white/10 overflow-hidden shadow-inner">
-            <div id="job-progress-bar" class="progress-animated h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+          <div class="w-full bg-[#09090b] rounded-full h-2.5 p-0.5 border border-white/10 overflow-hidden">
+            <div id="job-progress-bar" class="progress-animated h-1.5 rounded-full transition-all duration-300 bg-[#3d7eff]" style="width: 0%"></div>
           </div>
         </div>
 
         <!-- Real-Time Metrics Grid (Speed, FPS, Time, ETA) -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">İşleme Hızı</span>
-            <span id="metric-speed" class="text-base font-mono font-bold text-cyan-400">0.0x</span>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-left">
+          <div class="bg-[#18181c] p-2.5 rounded-md border border-white/10 space-y-0.5">
+            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">İşleme Hızı</span>
+            <span id="metric-speed" class="text-sm font-mono font-bold text-[#70a5ff]">0.0x</span>
           </div>
 
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Kare Hızı (FPS)</span>
-            <span id="metric-fps" class="text-base font-mono font-bold text-emerald-300">0.0</span>
+          <div class="bg-[#18181c] p-2.5 rounded-md border border-white/10 space-y-0.5">
+            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">Kare Hızı (FPS)</span>
+            <span id="metric-fps" class="text-sm font-mono font-bold text-slate-200">0.0</span>
           </div>
 
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">İşlenen Süre</span>
-            <span id="metric-current-time" class="text-base font-mono font-bold text-purple-300">00:00:00</span>
+          <div class="bg-[#18181c] p-2.5 rounded-md border border-white/10 space-y-0.5">
+            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">İşlenen Süre</span>
+            <span id="metric-current-time" class="text-sm font-mono font-bold text-slate-200">00:00:00</span>
           </div>
 
-          <div class="glass-card p-3 rounded-xl border border-white/5 space-y-1">
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Kalan Süre</span>
-            <span id="metric-eta" class="text-base font-mono font-bold text-emerald-400">Hesaplanıyor</span>
+          <div class="bg-[#18181c] p-2.5 rounded-md border border-white/10 space-y-0.5">
+            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">Kalan Süre</span>
+            <span id="metric-eta" class="text-sm font-mono font-bold text-[#70a5ff]">Hesaplanıyor</span>
           </div>
         </div>
 
         <!-- Console Log Stream Ticker -->
-        <div class="glass-card p-3 rounded-xl border border-white/5 text-left font-mono text-[11px] text-slate-400 flex items-center gap-2 overflow-hidden truncate">
-          <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0"></i>
+        <div class="bg-[#18181c] p-2.5 rounded-md border border-white/10 text-left font-mono text-[11px] text-slate-400 flex items-center gap-2 overflow-hidden truncate">
+          <i data-lucide="terminal" class="w-3.5 h-3.5 text-[#3d7eff] flex-shrink-0"></i>
           <span id="progress-log-ticker" class="truncate">FFmpeg motoru başlatılıyor...</span>
         </div>
 
         <!-- Cancel Button -->
-        <div class="pt-2">
-          <button id="btn-cancel-job" class="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/50 text-xs font-semibold transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer">
-            <i data-lucide="x-circle" class="w-4 h-4"></i>
+        <div class="pt-1">
+          <button id="btn-cancel-job" class="btn-danger flex items-center justify-center gap-1.5 mx-auto cursor-pointer">
+            <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
             <span>İşlemi İptal Et</span>
           </button>
         </div>
@@ -1289,74 +1531,74 @@
     <!-- STATE 4: COMPLETION & DOWNLOAD SCREEN                             -->
     <!-- ================================================================= -->
     <section id="view-complete" class="hidden flex-1 flex flex-col justify-center items-center py-6">
-      <div class="max-w-2xl w-full glass-panel rounded-3xl p-6 sm:p-8 border border-emerald-500/30 shadow-2xl space-y-6 text-center glow-purple">
+      <div class="max-w-2xl w-full bg-[#111114] rounded-lg p-6 sm:p-8 border border-white/10 shadow-xl space-y-5 text-center">
         
         <!-- Celebration Header -->
-        <div class="space-y-2">
-          <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
-            <i data-lucide="check-circle" class="w-8 h-8"></i>
+        <div class="space-y-1.5">
+          <div class="w-12 h-12 rounded-lg bg-[#1c2333] border border-[#2d4875] text-[#70a5ff] flex items-center justify-center mx-auto shadow-sm">
+            <i data-lucide="check" class="w-6 h-6"></i>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">Videonuz Hazır! 🎉</h2>
+          <h2 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Videonuz Hazır!</h2>
           <p class="text-xs text-slate-400">Videonuz seçtiğiniz özelliklere göre başarıyla işlendi ve optimize edildi.</p>
         </div>
 
         <!-- Before / After Size Comparison Card -->
-        <div class="glass-card rounded-2xl p-4 sm:p-5 border border-white/10 grid grid-cols-3 gap-2 items-center">
-          <div class="space-y-1 text-center sm:text-left">
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Önceki Boyut</span>
-            <span id="complete-original-size" class="text-base sm:text-lg font-mono font-bold text-slate-300">14.2 MB</span>
+        <div class="bg-[#18181c] rounded-lg p-3 sm:p-4 border border-white/10 grid grid-cols-3 gap-2 items-center">
+          <div class="space-y-0.5 text-center sm:text-left">
+            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">Önceki Boyut</span>
+            <span id="complete-original-size" class="text-base font-mono font-bold text-slate-300">14.2 MB</span>
           </div>
 
           <div class="flex flex-col items-center justify-center">
-            <div id="complete-savings-badge" class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold font-mono text-xs sm:text-sm">
+            <div id="complete-savings-badge" class="px-2.5 py-0.5 rounded-full bg-[#1c2333] border border-[#2d4875] text-[#70a5ff] font-bold font-mono text-xs">
               -68% Tasarruf
             </div>
-            <i data-lucide="arrow-right" class="w-4 h-4 text-slate-500 mt-1"></i>
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-500 mt-1"></i>
           </div>
 
-          <div class="space-y-1 text-center sm:text-right">
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Yeni Boyut</span>
-            <span id="complete-final-size" class="text-base sm:text-lg font-mono font-bold text-emerald-400">4.5 MB</span>
+          <div class="space-y-0.5 text-center sm:text-right">
+            <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">Yeni Boyut</span>
+            <span id="complete-final-size" class="text-base font-mono font-bold text-[#70a5ff]">4.5 MB</span>
           </div>
         </div>
 
         <!-- Processed Video Player Preview -->
-        <div class="video-preview-wrapper rounded-xl overflow-hidden relative flex items-center justify-center bg-black max-h-[360px] border border-white/10 shadow-xl">
+        <div class="video-preview-wrapper rounded-md overflow-hidden relative flex items-center justify-center bg-black max-h-[360px] border border-white/10 shadow-md">
           <video id="output-video-player" class="w-full max-h-[360px] object-contain" controls playsinline></video>
         </div>
 
         <!-- Download CTA Buttons -->
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-          <button id="btn-save-as" class="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-sm tracking-wide shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer">
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1">
+          <button id="btn-save-as" class="btn-primary w-full sm:w-auto py-2.5 px-5 text-xs flex items-center justify-center gap-2 cursor-pointer">
             <i data-lucide="folder-down" class="w-4 h-4"></i>
             <span>Farklı Kaydet (Konum Seç...)</span>
           </button>
 
-          <a id="btn-download-output" href="#" download class="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer">
+          <a id="btn-download-output" href="#" download class="btn-ghost w-full sm:w-auto flex items-center justify-center gap-1.5 cursor-pointer">
             <i data-lucide="download" class="w-3.5 h-3.5"></i>
             <span>İndirilenler'e Kaydet</span>
           </a>
 
-          <button id="btn-open-folder" class="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer" title="Çıktı Dosyasını Dosya Gezgininde Göster">
-            <i data-lucide="folder" class="w-3.5 h-3.5 text-amber-400"></i>
+          <button id="btn-open-folder" class="btn-ghost w-full sm:w-auto flex items-center justify-center gap-1.5 cursor-pointer" title="Çıktı Dosyasını Dosya Gezgininde Göster">
+            <i data-lucide="folder" class="w-3.5 h-3.5 text-slate-300"></i>
             <span>Klasörde Göster</span>
           </button>
 
-          <button id="btn-copy-link" class="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer">
+          <button id="btn-copy-link" class="btn-ghost w-full sm:w-auto flex items-center justify-center gap-1.5 cursor-pointer">
             <i data-lucide="link" class="w-3.5 h-3.5"></i>
             <span id="copy-link-text">Bağlantıyı Kopyala</span>
           </button>
         </div>
 
         <!-- Custom Save Path Row -->
-        <div class="glass-card rounded-xl p-3 border border-white/5 max-w-lg mx-auto w-full text-left space-y-2">
+        <div class="bg-[#18181c] rounded-lg p-3 border border-white/10 max-w-lg mx-auto w-full text-left space-y-2">
           <label class="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-            <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-400"></i>
             Veya Bilgisayarda Belirli Bir Klasöre / Dosya Yoluna Kaydet:
           </label>
           <div class="flex items-center gap-2">
-            <input type="text" id="input-direct-save-path" placeholder="Örn: C:\Users\Alperen\Desktop veya D:\Videolar" class="flex-1 bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-1.5 text-xs font-mono text-white outline-none">
-            <button id="btn-direct-save-submit" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer">
+            <input type="text" id="input-direct-save-path" placeholder="Örn: C:\Users\Alperen\Desktop veya D:\Videolar" class="flex-1 bg-[#111114] border border-white/10 focus:border-[#3d7eff] rounded-md px-3 py-1.5 text-xs font-mono text-white outline-none">
+            <button id="btn-direct-save-submit" class="btn-primary text-xs py-1.5 px-3 flex items-center gap-1 cursor-pointer">
               <i data-lucide="check" class="w-3.5 h-3.5"></i>
               <span>Kaydet</span>
             </button>
@@ -1364,8 +1606,8 @@
         </div>
 
         <!-- Navigation Buttons -->
-        <div class="flex items-center justify-center gap-4 pt-2 text-xs">
-          <button id="btn-re-edit" class="text-emerald-400 hover:text-emerald-300 font-medium hover:underline flex items-center gap-1 cursor-pointer">
+        <div class="flex items-center justify-center gap-4 pt-1 text-xs">
+          <button id="btn-re-edit" class="text-[#70a5ff] hover:underline font-medium flex items-center gap-1 cursor-pointer">
             <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
             <span>Ayarları Düzenle & Yeniden İşle</span>
           </button>
@@ -1383,34 +1625,34 @@
 
   <!-- Save Location Dialog Modal -->
   <div id="save-location-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 hidden animate-in fade-in duration-200">
-    <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-indigo-500/30 shadow-2xl space-y-5 text-center glow-purple">
-      <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
-        <i data-lucide="save" class="w-6 h-6"></i>
+    <div class="bg-[#111114] max-w-md w-full rounded-lg p-5 border border-white/10 shadow-2xl space-y-4 text-center">
+      <div class="w-10 h-10 rounded-lg bg-[#1c2333] border border-[#2d4875] text-[#70a5ff] flex items-center justify-center mx-auto shadow-sm">
+        <i data-lucide="save" class="w-5 h-5"></i>
       </div>
 
       <div class="space-y-1">
-        <h3 class="text-lg sm:text-xl font-bold text-white">İşlem Tamamlandı!</h3>
+        <h3 class="text-base font-bold text-white">İşlem Tamamlandı!</h3>
         <p class="text-xs text-slate-400">Yeni videoyu bilgisayarınızda nereye kaydetmek istersiniz?</p>
       </div>
 
       <!-- Primary Action: Native File Picker -->
-      <div class="p-3.5 rounded-xl bg-indigo-950/50 border border-indigo-500/30 space-y-2">
-        <button id="modal-btn-save-as" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer">
+      <div class="p-3 rounded-md bg-[#18181c] border border-white/10 space-y-1.5">
+        <button id="modal-btn-save-as" class="btn-primary w-full py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer">
           <i data-lucide="folder-down" class="w-4 h-4"></i>
           <span>Konum Seç ve Kaydet (Farklı Kaydet...)</span>
         </button>
-        <span class="text-[11px] text-slate-400 block">Windows 'Farklı Kaydet' penceresinden istediğiniz klasörü seçin.</span>
+        <span class="text-[10px] text-slate-500 block">Windows 'Farklı Kaydet' penceresinden istediğiniz klasörü seçin.</span>
       </div>
 
       <!-- Secondary Action: Direct Path -->
-      <div class="p-3.5 rounded-xl bg-slate-900/80 border border-white/10 space-y-2 text-left">
+      <div class="p-3 rounded-md bg-[#18181c] border border-white/10 space-y-2 text-left">
         <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-          <i data-lucide="hard-drive" class="w-3 h-3 text-indigo-400"></i>
+          <i data-lucide="hard-drive" class="w-3 h-3 text-slate-400"></i>
           Veya Doğrudan Klasör Yolu Belirtin:
         </label>
         <div class="flex items-center gap-2">
-          <input type="text" id="modal-input-save-path" placeholder="Örn: C:\Users\Alperen\Desktop" class="flex-1 bg-slate-800 border border-slate-700 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white outline-none">
-          <button id="modal-btn-save-path" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors flex items-center gap-1">
+          <input type="text" id="modal-input-save-path" placeholder="Örn: C:\Users\Alperen\Desktop" class="flex-1 bg-[#111114] border border-white/10 focus:border-[#3d7eff] rounded px-2.5 py-1.5 text-xs font-mono text-white outline-none">
+          <button id="modal-btn-save-path" class="btn-primary text-xs py-1.5 px-3">
             <span>Kaydet</span>
           </button>
         </div>
@@ -1727,6 +1969,74 @@
             Vazgeç
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Guide Modal (E-7) -->
+  <div id="shortcuts-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 hidden animate-in fade-in duration-200">
+    <div class="glass-panel max-w-lg w-full rounded-2xl p-6 border border-amber-500/30 shadow-2xl space-y-4 glow-accent">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+            <i data-lucide="keyboard" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Klavye Kısayolları Rehberi</h3>
+            <p class="text-[11px] text-slate-400">Hızlı kurgu ve profesyonel zaman çizgisi kontrolleri</p>
+          </div>
+        </div>
+        <button id="btn-close-shortcuts" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Oynat / Duraklat</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-amber-300">Space</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Klibi İkiye Böl (Split)</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-amber-300">S</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Seçili Klibi Sil</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-rose-400">Del / Backspace</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Son İşlemi Geri Al</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-indigo-300">Ctrl + Z</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Klibi Çoğalt (Duplicate)</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-cyan-300">Ctrl + D</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Aralık Kırpma (In / Out)</span>
+          <div class="flex gap-1">
+            <kbd class="px-1.5 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-amber-300">I</kbd>
+            <kbd class="px-1.5 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-amber-300">O</kbd>
+          </div>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Mıknatıs (Snap) Aç/Kapa</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-emerald-300">M</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between">
+          <span class="text-slate-300">Boşluk Kapatma (Ripple)</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-indigo-300">R</kbd>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 flex items-center justify-between sm:col-span-2">
+          <span class="text-slate-300">Projeyi Kaydet (.koalaproject)</span>
+          <kbd class="px-2 py-0.5 bg-slate-800 border border-white/10 rounded font-mono font-bold text-emerald-300">Ctrl + S</kbd>
+        </div>
+      </div>
+
+      <div class="pt-2 text-center">
+        <button id="btn-shortcuts-ok" class="px-6 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 text-xs font-semibold cursor-pointer">
+          Anladım
+        </button>
       </div>
     </div>
   </div>

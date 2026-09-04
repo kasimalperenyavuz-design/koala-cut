@@ -316,6 +316,8 @@ def create_range_streaming_response(
             "Accept-Ranges": "bytes",
             "Content-Length": str(content_length),
             "Content-Type": content_type,
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
         }
         return StreamingResponse(
             file_chunk_generator(path, start, end),
@@ -329,6 +331,8 @@ def create_range_streaming_response(
         "Accept-Ranges": "bytes",
         "Content-Length": str(file_size),
         "Content-Type": content_type,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
     }
     return StreamingResponse(
         file_chunk_generator(path, 0, max(0, file_size - 1)),
