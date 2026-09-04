@@ -3453,6 +3453,29 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Inspector Akordiyon Kartları (Collapsible Accordions)
+  // ---------------------------------------------------------------------------
+  function initAccordions() {
+    const headers = document.querySelectorAll('.accordion-header');
+    headers.forEach((header) => {
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        const targetId = header.dataset.target;
+        if (!targetId) return;
+        const body = document.getElementById(targetId);
+        const chevron = header.querySelector('.accordion-chevron');
+        if (body) {
+          const isHidden = body.classList.toggle('hidden');
+          if (chevron) {
+            chevron.classList.toggle('rotate-180', !isHidden);
+          }
+          refreshIcons();
+        }
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Aspect Ratio & Fit Mode
   // ---------------------------------------------------------------------------
   function initAspectRatioControls() {
@@ -4239,6 +4262,7 @@
     initCapCutTimelineStudio();
     initKeyboardShortcuts();
     initInspectorTabs();
+    initAccordions();
     initAspectRatioControls();
     initResolutionAndFpsControls();
     initCompressionControls();
