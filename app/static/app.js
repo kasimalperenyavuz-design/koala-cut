@@ -1471,6 +1471,13 @@
   // --- Razor Split Tool ---
   function splitClipAtPlayhead() {
     if (state.duration <= 0) return;
+
+    // If range selection is active, split at the secondary and primary range boundary points!
+    if (state.rangeSelection && state.rangeSelection.active) {
+      splitAtRangeSelection();
+      return;
+    }
+
     const cur = state.playheadTime;
 
     const track = state.tracks.find((t) => t.id === state.selectedTrackId) || getV1Track();
@@ -1479,7 +1486,7 @@
     const targetIdx = track.clips.findIndex((c) => {
       const start = c.timeline_start || 0;
       const dur = getClipDuration(c);
-      return cur > start + 0.1 && cur < start + dur - 0.1;
+      return cur > start + 0.05 && cur < start + dur - 0.05;
     });
 
     if (targetIdx === -1) {
@@ -2065,6 +2072,31 @@
     showToast(`Seçili aralık silindi 🗑️ (${cutDur.toFixed(2)}s çıkarıldı)`, 'success');
   }
 
+  function seekPreviewWithoutMovingPlayhead(targetTime) {
+    if (dom.playerCurrentTime) {
+      dom.playerCurrentTime.textContent = formatTime(targetTime);
+    }
+    const active = getActiveVideoClipAtTime(targetTime);
+    if (active) {
+      const fileId = active.clip.file_id || state.fileId;
+      const speed = active.clip.speed || 1.0;
+      const offsetInClip = (targetTime - active.clipStart) * speed;
+      const sourceTime = active.clip.in_point + offsetInClip;
+      const targetSrc = active.clip.preview_url || `/api/media/${fileId}`;
+
+      if (currentLoadedFileId !== fileId) {
+        currentLoadedFileId = fileId;
+        dom.videoPlayer.src = targetSrc;
+        dom.videoPlayer.onloadedmetadata = () => {
+          dom.videoPlayer.currentTime = sourceTime;
+        };
+        dom.videoPlayer.load();
+      } else {
+        dom.videoPlayer.currentTime = sourceTime;
+      }
+    }
+  }
+
   function splitAtRangeSelection() {
     if (!state.rangeSelection || !state.rangeSelection.active) return;
     const rStart = Math.min(state.rangeSelection.start, state.rangeSelection.end);
@@ -2072,38 +2104,74 @@
 
     pushTimelineHistory();
 
-    [rStart, rEnd].forEach((splitTime) => {
-      state.tracks.forEach((track) => {
-        if (track.locked) return;
+    const targetTrack = state.tracks.find((t) => t.id === state.selectedTrackId);
+    const tracksToProcess = targetTrack ? [targetTrack] : state.tracks.filter((t) => !t.locked);
+
+    let anySplit = false;
+    let newlySelectedId = null;
+
+    // Process split points in order: rStart first, then rEnd
+    const splitPoints = [rStart, rEnd].sort((a, b) => a - b);
+
+    splitPoints.forEach((splitTime) => {
+      tracksToProcess.forEach((track) => {
         const clipIdx = (track.clips || []).findIndex((c) => {
           const s = c.timeline_start;
           const e = s + getClipDuration(c);
           return splitTime > s + 0.05 && splitTime < e - 0.05;
         });
-        if (clipIdx !== -1) {
-          const original = track.clips[clipIdx];
-          const speed = original.speed || 1.0;
-          const splitOffsetInClip = (splitTime - original.timeline_start) * speed;
-          const splitSourceTime = original.in_point + splitOffsetInClip;
 
-          const leftClip = {
-            ...original,
-            out_point: splitSourceTime,
-          };
-          const rightClip = {
-            ...original,
-            id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-            in_point: splitSourceTime,
-            timeline_start: splitTime,
-          };
-          track.clips.splice(clipIdx, 1, leftClip, rightClip);
+        if (clipIdx !== -1) {
+          const targetClip = track.clips[clipIdx];
+          const speed = targetClip.speed || 1.0;
+          const splitOffsetInSource = (splitTime - targetClip.timeline_start) * speed;
+          const splitSourcePoint = Math.round((targetClip.in_point + splitOffsetInSource) * 1000) / 1000;
+
+          const clipA = createClip(
+            `clip-${++clipCounter}`,
+            targetClip.in_point,
+            splitSourcePoint,
+            targetClip.timeline_start,
+            targetClip.speed,
+            targetClip.volume,
+            targetClip.file_id,
+            targetClip.filename,
+            targetClip.preview_url
+          );
+
+          const clipB = createClip(
+            `clip-${++clipCounter}`,
+            splitSourcePoint,
+            targetClip.out_point,
+            splitTime,
+            targetClip.speed,
+            targetClip.volume,
+            targetClip.file_id,
+            targetClip.filename,
+            targetClip.preview_url
+          );
+
+          track.clips.splice(clipIdx, 1, clipA, clipB);
+          anySplit = true;
+          newlySelectedId = clipB.id;
         }
       });
     });
 
+    if (!anySplit) {
+      showToast('İmleçlerin olduğu noktalarda bölünebilecek bir klip bulunamadı.', 'info');
+      return;
+    }
+
+    if (newlySelectedId) {
+      state.selectedClipId = newlySelectedId;
+    }
+
+    clearRangeSelection();
     renderAllTracks();
     updateTimelineDurationBadge();
-    showToast('Aralık sınırlarından klipler bölündü ⚡', 'success');
+    updateClipInspector();
+    showToast('Klip aralık işaretçilerinden başarıyla bölündü ✂️', 'success');
   }
 
   function initPlayheadDualWingTrimmer() {
@@ -2113,31 +2181,30 @@
       if (state.isPlaying) stopTimelinePlayback();
 
       const initialPlayhead = state.playheadTime;
-      if (!state.rangeSelection.active) {
-        state.rangeSelection.active = true;
-        state.rangeSelection.start = initialPlayhead;
-        state.rangeSelection.end = Math.min(state.duration, initialPlayhead + 2.0);
+      if (!state.rangeSelection || !state.rangeSelection.active) {
+        state.rangeSelection = {
+          active: true,
+          start: Math.max(0, initialPlayhead - 1.0),
+          end: initialPlayhead,
+        };
       }
+      const fixedEnd = state.rangeSelection.end;
 
       const onMove = (ev) => {
         const canvasRect = dom.timelineCanvas ? dom.timelineCanvas.getBoundingClientRect() : { left: 0 };
         const clientX = ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
         const offsetX = clientX - canvasRect.left;
-        const newTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
+        const newTime = Math.max(0, Math.min(fixedEnd, pxToTime(offsetX)));
         state.rangeSelection.start = newTime;
+        state.rangeSelection.end = fixedEnd;
         updateRangeOverlayUI();
-        syncPreviewToTimeline(newTime, false);
+        seekPreviewWithoutMovingPlayhead(newTime);
       };
 
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onUp);
-        if (state.rangeSelection.start > state.rangeSelection.end) {
-          const tmp = state.rangeSelection.start;
-          state.rangeSelection.start = state.rangeSelection.end;
-          state.rangeSelection.end = tmp;
-        }
         updateRangeOverlayUI();
       };
 
@@ -2152,31 +2219,30 @@
       if (state.isPlaying) stopTimelinePlayback();
 
       const initialPlayhead = state.playheadTime;
-      if (!state.rangeSelection.active) {
-        state.rangeSelection.active = true;
-        state.rangeSelection.start = Math.max(0, initialPlayhead - 2.0);
-        state.rangeSelection.end = initialPlayhead;
+      if (!state.rangeSelection || !state.rangeSelection.active) {
+        state.rangeSelection = {
+          active: true,
+          start: initialPlayhead,
+          end: Math.min(state.duration, initialPlayhead + 1.0),
+        };
       }
+      const fixedStart = state.rangeSelection.start;
 
       const onMove = (ev) => {
         const canvasRect = dom.timelineCanvas ? dom.timelineCanvas.getBoundingClientRect() : { left: 0 };
         const clientX = ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
         const offsetX = clientX - canvasRect.left;
-        const newTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
+        const newTime = Math.min(state.duration, Math.max(fixedStart, pxToTime(offsetX)));
+        state.rangeSelection.start = fixedStart;
         state.rangeSelection.end = newTime;
         updateRangeOverlayUI();
-        syncPreviewToTimeline(newTime, false);
+        seekPreviewWithoutMovingPlayhead(newTime);
       };
 
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onUp);
-        if (state.rangeSelection.start > state.rangeSelection.end) {
-          const tmp = state.rangeSelection.start;
-          state.rangeSelection.start = state.rangeSelection.end;
-          state.rangeSelection.end = tmp;
-        }
         updateRangeOverlayUI();
       };
 
