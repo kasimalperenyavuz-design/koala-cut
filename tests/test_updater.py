@@ -41,13 +41,17 @@ def test_update_status_endpoint(client):
 
 def test_update_config_endpoint(client):
     """Verify updating the GitHub repository configuration."""
-    res = client.post("/api/updates/config", json={"repo": "myuser/custom-koala"})
-    assert res.status_code == 200
-    assert res.json()["repo"] == "myuser/custom-koala"
+    orig_repo = updater_service.repo
+    try:
+        res = client.post("/api/updates/config", json={"repo": "myuser/custom-koala"})
+        assert res.status_code == 200
+        assert res.json()["repo"] == "myuser/custom-koala"
 
-    # Test invalid format
-    res_bad = client.post("/api/updates/config", json={"repo": "invalidrepo"})
-    assert res_bad.status_code == 400
+        # Test invalid format
+        res_bad = client.post("/api/updates/config", json={"repo": "invalidrepo"})
+        assert res_bad.status_code == 400
+    finally:
+        updater_service.save_repo(orig_repo)
 
 
 @pytest.mark.asyncio
