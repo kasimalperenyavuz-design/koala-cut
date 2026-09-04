@@ -22,6 +22,7 @@ from app.engine.runner import (
     FFmpegCancelledError,
     FFmpegExecutionError,
 )
+from app.services.storage import storage_manager
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +248,20 @@ class JobManager:
 
         # 2. Determine target expected duration
         start = job.config.start_time or 0.0
-        if job.config.end_time is not None:
+        if job.config.timeline_tracks:
+            max_end = 0.0
+            for trk in job.config.timeline_tracks:
+                for clip in trk.clips:
+                    max_end = max(max_end, clip.timeline_end)
+            if max_end > 0.0:
+                expected_duration = max_end
+            elif job.config.end_time is not None:
+                expected_duration = max(0.0, job.config.end_time - start)
+            elif source_duration > 0.0:
+                expected_duration = max(0.0, source_duration - start)
+            else:
+                expected_duration = 0.0
+        elif job.config.end_time is not None:
             expected_duration = max(0.0, job.config.end_time - start)
         elif source_duration > 0.0:
             expected_duration = max(0.0, source_duration - start)
@@ -256,12 +270,22 @@ class JobManager:
 
         # 3. Construct FFmpeg command
         try:
+            extra_inputs: dict[str, str] = {}
+            if job.config.timeline_tracks:
+                for trk in job.config.timeline_tracks:
+                    for clip in trk.clips:
+                        if clip.file_id and clip.file_id not in extra_inputs:
+                            p = storage_manager.resolve_media_path(clip.file_id)
+                            if p and p.is_file():
+                                extra_inputs[clip.file_id] = str(p)
+
             builder = FFmpegCommandBuilder()
             cmd = builder.build(
                 input_path=job.input_path,
                 output_path=job.output_path,
                 config=job.config,
                 source_duration=source_duration,
+                extra_inputs=extra_inputs or None,
             )
         except Exception as exc:
             job.status = "failed"

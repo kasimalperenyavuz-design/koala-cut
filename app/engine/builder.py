@@ -61,6 +61,11 @@ class TimelineClip(BaseModel):
         """Effective playback duration on the timeline taking speed into account."""
         return max(0.0, (self.out_point - self.in_point) / self.speed)
 
+    @property
+    def timeline_end(self) -> float:
+        """Timestamp on the timeline where this clip ends."""
+        return self.timeline_start + self.duration
+
 
 class TimelineTrack(BaseModel):
     """A lane/track on the timeline (e.g. V1, V2, A1)."""
@@ -375,6 +380,7 @@ class FFmpegCommandBuilder:
         output_path: str,
         config: VideoFilterConfig,
         source_duration: float = 0.0,
+        extra_inputs: Optional[dict[str, str]] = None,
     ) -> list[str]:
         """Construct full ffmpeg command line arguments.
 
@@ -383,6 +389,7 @@ class FFmpegCommandBuilder:
             output_path: Destination output file path.
             config: Video transformation settings.
             source_duration: Source media duration in seconds (for target_size bitrate calculations).
+            extra_inputs: Optional mapping from file_id to file path for multi-video projects.
 
         Returns:
             List of command line argument strings suitable for subprocess execution.
@@ -390,15 +397,16 @@ class FFmpegCommandBuilder:
         input_file = os.path.normpath(input_path)
         output_file = os.path.normpath(output_path)
 
-        # Check if timeline_tracks is specified (CapCut NLE mode)
-        v_track = None
+        # Collect video clips from all video tracks (CapCut NLE mode)
+        timeline_clips: list[tuple[TimelineClip, bool]] = []
         if config.timeline_tracks:
             for t in config.timeline_tracks:
-                if t.type == "video" and t.clips:
-                    v_track = t
-                    break
+                if t.type == "video":
+                    for c in t.clips:
+                        timeline_clips.append((c, t.muted))
+            timeline_clips.sort(key=lambda item: item[0].timeline_start)
 
-        has_timeline = v_track is not None and len(v_track.clips) > 0
+        has_timeline = len(timeline_clips) > 0
 
         keep_intervals = self.calculate_keep_intervals(
             source_duration=source_duration,
@@ -416,23 +424,32 @@ class FFmpegCommandBuilder:
             )
 
         if has_timeline:
-            assert v_track is not None
-            n_clips = len(v_track.clips)
+            input_files: list[str] = [input_file]
+            file_to_idx: dict[str, int] = {}
+            if extra_inputs:
+                for fid, fpath in extra_inputs.items():
+                    norm_p = os.path.normpath(fpath)
+                    if norm_p not in input_files:
+                        input_files.append(norm_p)
+                    file_to_idx[fid] = input_files.index(norm_p)
+
+            n_clips = len(timeline_clips)
             complex_filters: list[str] = []
             v_inputs: list[str] = []
             a_inputs: list[str] = []
 
-            for i, clip in enumerate(v_track.clips):
+            for i, (clip, track_muted) in enumerate(timeline_clips):
                 v_tag = f"v{i}"
+                in_idx = file_to_idx.get(clip.file_id, 0) if clip.file_id else 0
                 speed = clip.speed if clip.speed > 0 else 1.0
                 pts_speed = f"setpts={1.0 / speed:.4f}*(PTS-STARTPTS)" if speed != 1.0 else "setpts=PTS-STARTPTS"
-                v_trim = f"[0:v]trim=start={clip.in_point:.3f}:end={clip.out_point:.3f},{pts_speed}[{v_tag}]"
+                v_trim = f"[{in_idx}:v]trim=start={clip.in_point:.3f}:end={clip.out_point:.3f},{pts_speed}[{v_tag}]"
                 complex_filters.append(v_trim)
                 v_inputs.append(f"[{v_tag}]")
 
-                if not config.remove_audio and not v_track.muted:
+                if not config.remove_audio and not track_muted:
                     a_tag = f"a{i}"
-                    atrim_filter = f"[0:a]atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f},asetpts=PTS-STARTPTS"
+                    atrim_filter = f"[{in_idx}:a]atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f},asetpts=PTS-STARTPTS"
                     if speed != 1.0:
                         atrim_filter += f",atempo={speed:.4f}"
                     if clip.volume != 1.0:
@@ -441,7 +458,7 @@ class FFmpegCommandBuilder:
                     complex_filters.append(atrim_filter)
                     a_inputs.append(f"[{a_tag}]")
 
-            has_audio = (not config.remove_audio) and (not v_track.muted) and (len(a_inputs) == n_clips)
+            has_audio = (not config.remove_audio) and (len(a_inputs) == n_clips)
 
             if n_clips > 1:
                 if has_audio:
@@ -465,12 +482,13 @@ class FFmpegCommandBuilder:
                 complex_filters.append(f"{current_v}{vf_str}[v_out]")
                 current_v = "[v_out]"
 
-            cmd: list[str] = [
-                get_ffmpeg_path(), "-y",
-                "-i", input_file,
+            cmd: list[str] = [get_ffmpeg_path(), "-y"]
+            for inp in input_files:
+                cmd.extend(["-i", inp])
+            cmd.extend([
                 "-filter_complex", ";".join(complex_filters),
                 "-map", current_v,
-            ]
+            ])
             if current_a is not None:
                 cmd.extend(["-map", current_a])
         elif has_multi_cuts:
@@ -563,8 +581,7 @@ class FFmpegCommandBuilder:
             ))
         elif config.mode == "target_size":
             if has_timeline:
-                assert v_track is not None
-                effective_duration = sum(c.duration for c in v_track.clips)
+                effective_duration = sum(c.duration for c, _ in timeline_clips)
             elif has_multi_cuts:
                 effective_duration = sum((e - s) for s, e in keep_intervals if e is not None)
             else:

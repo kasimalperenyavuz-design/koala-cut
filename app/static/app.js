@@ -30,6 +30,8 @@
     timelineHistory: [], // Undo snapshots
     startTime: 0,
     endTime: 0,
+    playheadTime: 0.0,
+    isPlaying: false,
     isPlayingTrim: false,
 
     // Transformation Settings
@@ -570,9 +572,23 @@
 
       // Initialize CapCut Multi-Track Timeline
       clipCounter = 1;
+      state.playheadTime = 0.0;
+      currentLoadedFileId = state.fileId;
       const v1 = getV1Track();
       if (v1) {
-        v1.clips = [createClip('clip-1', 0.0, state.duration, 0.0, 1.0, 1.0)];
+        v1.clips = [
+          createClip(
+            'clip-1',
+            0.0,
+            state.duration,
+            0.0,
+            1.0,
+            1.0,
+            state.fileId,
+            state.filename,
+            streamUrl
+          ),
+        ];
       }
       state.selectedClipId = null;
       state.timelineHistory = [];
@@ -591,28 +607,153 @@
   }
 
   // ---------------------------------------------------------------------------
+  // NLE Timeline Master Playback & Multi-Video Preview Synchronizer
+  // ---------------------------------------------------------------------------
+  let currentLoadedFileId = null;
+  let timelinePlaybackRaf = null;
+  let lastTimelinePlaybackTime = 0;
+
+  function getActiveVideoClipAtTime(t) {
+    // Search visible video tracks from top to bottom (e.g. V3, V2, V1)
+    const videoTracks = state.tracks
+      .filter((trk) => trk.type === 'video' && trk.visible !== false)
+      .slice()
+      .sort((a, b) => {
+        const numA = parseInt(a.id.replace(/\D/g, '') || '0', 10);
+        const numB = parseInt(b.id.replace(/\D/g, '') || '0', 10);
+        return numB - numA;
+      });
+
+    for (const trk of videoTracks) {
+      for (const clip of trk.clips || []) {
+        const clipStart = clip.timeline_start || 0;
+        const clipDur = getClipDuration(clip);
+        if (t >= clipStart && t < clipStart + clipDur) {
+          return { clip, track: trk, clipStart, clipDur };
+        }
+      }
+    }
+    return null;
+  }
+
+  function syncPreviewToTimeline(targetTime, isPlaying = false) {
+    state.playheadTime = Math.max(0, Math.min(state.duration, targetTime));
+
+    // Update playhead visual element
+    if (dom.timelinePlayheadLine) {
+      dom.timelinePlayheadLine.style.left = `${timeToPx(state.playheadTime)}px`;
+    }
+    if (dom.playerCurrentTime) {
+      dom.playerCurrentTime.textContent = formatTime(state.playheadTime);
+    }
+
+    const active = getActiveVideoClipAtTime(state.playheadTime);
+
+    if (active) {
+      const { clip } = active;
+      const fileId = clip.file_id || state.fileId;
+      const speed = clip.speed || 1.0;
+      const offsetInClip = (state.playheadTime - active.clipStart) * speed;
+      const sourceTime = clip.in_point + offsetInClip;
+      const targetSrc = clip.preview_url || `/api/media/${fileId}`;
+
+      if (currentLoadedFileId !== fileId) {
+        currentLoadedFileId = fileId;
+        const wasPlaying = isPlaying || state.isPlaying;
+
+        dom.videoPlayer.src = targetSrc;
+        dom.videoPlayer.onloadedmetadata = () => {
+          dom.videoPlayer.currentTime = sourceTime;
+          dom.videoPlayer.playbackRate = speed;
+          if (wasPlaying && state.isPlaying) {
+            dom.videoPlayer.play().catch(() => {});
+          }
+        };
+        dom.videoPlayer.load();
+      } else {
+        dom.videoPlayer.playbackRate = speed;
+        if (!isPlaying) {
+          dom.videoPlayer.currentTime = sourceTime;
+        } else {
+          // Re-sync if drifted > 0.35s
+          if (Math.abs(dom.videoPlayer.currentTime - sourceTime) > 0.35) {
+            dom.videoPlayer.currentTime = sourceTime;
+          }
+          if (dom.videoPlayer.paused && state.isPlaying) {
+            dom.videoPlayer.play().catch(() => {});
+          }
+        }
+      }
+    } else {
+      // Empty gap on timeline
+      if (!dom.videoPlayer.paused && isPlaying) {
+        dom.videoPlayer.pause();
+      }
+    }
+  }
+
+  function startTimelinePlayback() {
+    if (state.playheadTime >= state.duration) {
+      state.playheadTime = 0;
+    }
+    state.isPlaying = true;
+    lastTimelinePlaybackTime = performance.now();
+
+    dom.videoCenterBtn.classList.add('opacity-0', 'pointer-events-none');
+    dom.transportPlayIcon.setAttribute('data-lucide', 'pause');
+    refreshIcons();
+
+    syncPreviewToTimeline(state.playheadTime, true);
+
+    function step(now) {
+      if (!state.isPlaying) return;
+      const dt = (now - lastTimelinePlaybackTime) / 1000;
+      lastTimelinePlaybackTime = now;
+
+      state.playheadTime += dt;
+      if (state.playheadTime >= state.duration) {
+        stopTimelinePlayback();
+        state.playheadTime = state.duration;
+        syncPreviewToTimeline(state.playheadTime, false);
+        return;
+      }
+
+      syncPreviewToTimeline(state.playheadTime, true);
+      timelinePlaybackRaf = requestAnimationFrame(step);
+    }
+
+    timelinePlaybackRaf = requestAnimationFrame(step);
+  }
+
+  function stopTimelinePlayback() {
+    state.isPlaying = false;
+    if (timelinePlaybackRaf) {
+      cancelAnimationFrame(timelinePlaybackRaf);
+      timelinePlaybackRaf = null;
+    }
+    if (!dom.videoPlayer.paused) {
+      dom.videoPlayer.pause();
+    }
+    dom.videoCenterBtn.classList.remove('opacity-0', 'pointer-events-none');
+    dom.transportPlayIcon.setAttribute('data-lucide', 'play');
+    refreshIcons();
+  }
+
+  function toggleTimelinePlayback() {
+    if (state.isPlaying) {
+      stopTimelinePlayback();
+    } else {
+      startTimelinePlayback();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Video Player Transport Controls
   // ---------------------------------------------------------------------------
   function initPlayerControls() {
-    // Play / Pause Toggle
-    const togglePlay = () => {
-      if (dom.videoPlayer.paused) {
-        const v1 = getV1Track();
-        if (v1 && v1.clips.length > 0) {
-          const lastClip = v1.clips[v1.clips.length - 1];
-          const firstClip = v1.clips[0];
-          if (dom.videoPlayer.currentTime >= lastClip.out_point || dom.videoPlayer.currentTime < firstClip.in_point) {
-            dom.videoPlayer.currentTime = firstClip.in_point;
-          }
-        }
-        dom.videoPlayer.play();
-      } else {
-        dom.videoPlayer.pause();
-      }
-    };
-
-    dom.videoCenterBtn.addEventListener('click', togglePlay);
-    dom.btnPlayPause.addEventListener('click', togglePlay);
+    dom.videoCenterBtn.addEventListener('click', toggleTimelinePlayback);
+    dom.btnPlayPause.addEventListener('click', toggleTimelinePlayback);
+    dom.videoPlayer.addEventListener('click', toggleTimelinePlayback);
 
     dom.videoPlayer.addEventListener('play', () => {
       dom.videoCenterBtn.classList.add('opacity-0', 'pointer-events-none');
@@ -621,43 +762,17 @@
     });
 
     dom.videoPlayer.addEventListener('pause', () => {
-      dom.videoCenterBtn.classList.remove('opacity-0', 'pointer-events-none');
-      dom.transportPlayIcon.setAttribute('data-lucide', 'play');
-      state.isPlayingTrim = false;
-      refreshIcons();
-    });
-
-    // Time Update & Playhead Scrubber
-    dom.videoPlayer.addEventListener('timeupdate', () => {
-      const cur = dom.videoPlayer.currentTime;
-      dom.playerCurrentTime.textContent = formatTime(cur);
-      updatePlayheadPosition();
-
-      // Real-time Gap Skipping across deleted timeline regions
-      if (!dom.videoPlayer.paused) {
-        const v1 = getV1Track();
-        if (v1 && v1.clips.length > 0) {
-          const lastClip = v1.clips[v1.clips.length - 1];
-          if (cur >= lastClip.out_point) {
-            dom.videoPlayer.pause();
-            state.isPlayingTrim = false;
-            return;
-          }
-
-          for (let i = 0; i < v1.clips.length - 1; i++) {
-            const currentClip = v1.clips[i];
-            const nextClip = v1.clips[i + 1];
-            if (cur >= currentClip.out_point && cur < nextClip.in_point) {
-              dom.videoPlayer.currentTime = nextClip.in_point;
-              break;
-            }
-          }
-        }
+      if (!state.isPlaying) {
+        dom.videoCenterBtn.classList.remove('opacity-0', 'pointer-events-none');
+        dom.transportPlayIcon.setAttribute('data-lucide', 'play');
+        refreshIcons();
       }
     });
 
     dom.videoPlayer.addEventListener('loadedmetadata', () => {
-      dom.playerTotalDuration.textContent = formatTime(dom.videoPlayer.duration);
+      if (dom.playerTotalDuration) {
+        dom.playerTotalDuration.textContent = formatTime(state.duration || dom.videoPlayer.duration);
+      }
     });
 
     // Mute / Unmute
@@ -693,7 +808,8 @@
     return Math.max(0.1, (outPt - inPt) / spd);
   }
 
-  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0, file_id = null, filename = null) {
+  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0, file_id = null, filename = null, preview_url = null) {
+    const fid = file_id || state.fileId;
     return {
       id,
       in_point: Math.round(in_point * 1000) / 1000,
@@ -701,8 +817,9 @@
       timeline_start: Math.round(timeline_start * 1000) / 1000,
       speed: speed || 1.0,
       volume: volume !== undefined ? volume : 1.0,
-      file_id: file_id || state.fileId,
+      file_id: fid,
       filename: filename || (state.filename ? state.filename : null),
+      preview_url: preview_url || (fid ? `/api/media/${fid}` : null),
       get duration() {
         return getClipDuration(this);
       },
@@ -761,7 +878,7 @@
   function snapTime(rawTime, thresholdSeconds = 0.25) {
     if (!state.isSnappingEnabled) return rawTime;
 
-    const snapPoints = [0, dom.videoPlayer.currentTime];
+    const snapPoints = [0, state.playheadTime];
     state.tracks.forEach((t) => {
       (t.clips || []).forEach((c) => {
         snapPoints.push(c.timeline_start);
@@ -892,10 +1009,9 @@
       const badgeColor = isVideo ? 'text-indigo-300' : 'text-cyan-300';
 
       headerEl.innerHTML = `
-        <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center gap-1.5 min-w-0">
           <i data-lucide="${iconName}" class="w-3.5 h-3.5 ${iconColor} flex-shrink-0"></i>
           <span class="text-xs font-mono font-bold ${badgeColor}">${track.name}</span>
-          ${track.locked ? '<i data-lucide="lock" class="w-3 h-3 text-amber-400 flex-shrink-0"></i>' : ''}
         </div>
         <div class="flex items-center gap-1">
           ${
@@ -932,6 +1048,7 @@
           e.stopPropagation();
           track.visible = track.visible === false;
           renderAllTracks();
+          syncPreviewToTimeline(state.playheadTime, false);
         });
       }
 
@@ -1246,40 +1363,49 @@
   // --- Razor Split Tool ---
   function splitClipAtPlayhead() {
     if (state.duration <= 0) return;
-    const cur = dom.videoPlayer.currentTime;
+    const cur = state.playheadTime;
 
     const track = state.tracks.find((t) => t.id === state.selectedTrackId) || getV1Track();
     if (!track || !track.clips || track.clips.length === 0) return;
 
-    const targetIdx = track.clips.findIndex(
-      (c) => cur > c.in_point + 0.15 && cur < c.out_point - 0.15
-    );
+    const targetIdx = track.clips.findIndex((c) => {
+      const start = c.timeline_start || 0;
+      const dur = getClipDuration(c);
+      return cur > start + 0.1 && cur < start + dur - 0.1;
+    });
 
     if (targetIdx === -1) {
-      showToast('İmleç bir klibin sınırında veya boş bir aralıkta. Bölme yapılamaz.', 'info');
+      showToast('İmleç seçili kanalda bir klibin üzerinde değil veya sınırında. Bölme yapılamaz.', 'info');
       return;
     }
 
     pushTimelineHistory();
     const targetClip = track.clips[targetIdx];
-    const curRounded = Math.round(cur * 100) / 100;
-    const splitOffset = (curRounded - targetClip.in_point) / (targetClip.speed || 1.0);
+    const speed = targetClip.speed || 1.0;
+    const splitOffsetInSource = (cur - targetClip.timeline_start) * speed;
+    const splitSourcePoint = Math.round((targetClip.in_point + splitOffsetInSource) * 100) / 100;
 
     const clipA = createClip(
       `clip-${++clipCounter}`,
       targetClip.in_point,
-      curRounded,
+      splitSourcePoint,
       targetClip.timeline_start,
       targetClip.speed,
-      targetClip.volume
+      targetClip.volume,
+      targetClip.file_id,
+      targetClip.filename,
+      targetClip.preview_url
     );
     const clipB = createClip(
       `clip-${++clipCounter}`,
-      curRounded,
+      splitSourcePoint,
       targetClip.out_point,
-      Math.round((targetClip.timeline_start + splitOffset) * 100) / 100,
+      Math.round(cur * 100) / 100,
       targetClip.speed,
-      targetClip.volume
+      targetClip.volume,
+      targetClip.file_id,
+      targetClip.filename,
+      targetClip.preview_url
     );
 
     track.clips.splice(targetIdx, 1, clipA, clipB);
@@ -1288,7 +1414,7 @@
     selectClip(clipB.id);
     renderAllTracks();
     updateTimelineDurationBadge();
-    showToast(`Klip ${formatTime(curRounded)} noktasından bölündü (Split) ✂️`, 'success');
+    showToast(`Klip ${formatTime(cur)} noktasından bölündü (Split) ✂️`, 'success');
   }
 
   function selectClip(clipId) {
@@ -1296,6 +1422,7 @@
     const sel = getSelectedClip();
     if (sel) {
       state.selectedTrackId = sel.track.id;
+      syncPreviewToTimeline(sel.clip.timeline_start, false);
     }
     if (dom.btnDeleteClip) {
       dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
@@ -1588,8 +1715,7 @@
   // --- Playhead & Ruler Scrubber ---
   function updatePlayheadPosition() {
     if (!dom.timelinePlayheadLine) return;
-    const cur = dom.videoPlayer.currentTime;
-    dom.timelinePlayheadLine.style.left = `${timeToPx(cur)}px`;
+    dom.timelinePlayheadLine.style.left = `${timeToPx(state.playheadTime)}px`;
   }
 
   function initTimelineRulerScrubber() {
@@ -1602,16 +1728,11 @@
       const offsetX = clientX - canvasRect.left;
       const targetTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
 
-      if (dom.timelinePlayheadLine) {
-        dom.timelinePlayheadLine.style.left = `${Math.max(0, offsetX)}px`;
-      }
-      dom.videoPlayer.currentTime = targetTime;
-      if (dom.playerCurrentTime) {
-        dom.playerCurrentTime.textContent = formatTime(targetTime);
-      }
+      syncPreviewToTimeline(targetTime, false);
     };
 
     const startScrubbing = (e) => {
+      if (state.isPlaying) stopTimelinePlayback();
       isScrubbing = true;
       document.body.classList.add('scrubbing-active');
       if (e.target && e.target.setPointerCapture && e.pointerId !== undefined) {
@@ -1827,8 +1948,7 @@
           updateTimelineDurationBadge();
           showToast('Tüm kanallardaki boşluklar kapatıldı ⚡', 'success');
         } else if (action === 'set-playhead-here') {
-          dom.videoPlayer.currentTime = contextClickedTime;
-          updatePlayheadPosition();
+          syncPreviewToTimeline(contextClickedTime, false);
         }
       });
     });
@@ -1982,6 +2102,7 @@
 
         pushTimelineHistory();
 
+        const previewUrl = data.preview_url || `/api/media/${data.file_id}`;
         // Create new clip
         const newClip = createClip(
           `clip-${++clipCounter}`,
@@ -1991,7 +2112,8 @@
           1.0,
           1.0,
           data.file_id,
-          data.filename
+          data.filename,
+          previewUrl
         );
 
         targetTrack.clips.push(newClip);
@@ -2007,6 +2129,7 @@
         }
 
         selectClip(newClip.id);
+        syncPreviewToTimeline(dropTime, false);
         renderAllTracks();
         updateTimelineDurationBadge();
         showToast(`"${data.filename}" başarıyla ${targetTrack.name} kanalına eklendi 🎬`, 'success');
@@ -2082,14 +2205,7 @@
       // Space: Play / Pause
       if (e.code === 'Space') {
         e.preventDefault();
-        if (dom.videoPlayer.paused) {
-          if (dom.videoPlayer.currentTime >= state.endTime || dom.videoPlayer.currentTime < state.startTime) {
-            dom.videoPlayer.currentTime = state.startTime;
-          }
-          dom.videoPlayer.play();
-        } else {
-          dom.videoPlayer.pause();
-        }
+        toggleTimelinePlayback();
         return;
       }
 
@@ -2121,16 +2237,18 @@
       // Comma (,): Step 1 frame back
       if (e.code === 'Comma') {
         e.preventDefault();
+        if (state.isPlaying) stopTimelinePlayback();
         const fps = (state.metadata && state.metadata.video && state.metadata.video.fps) || 30;
-        dom.videoPlayer.currentTime = Math.max(0, dom.videoPlayer.currentTime - (1 / fps));
+        syncPreviewToTimeline(Math.max(0, state.playheadTime - (1 / fps)), false);
         return;
       }
 
       // Period (.): Step 1 frame forward
       if (e.code === 'Period') {
         e.preventDefault();
+        if (state.isPlaying) stopTimelinePlayback();
         const fps = (state.metadata && state.metadata.video && state.metadata.video.fps) || 30;
-        dom.videoPlayer.currentTime = Math.min(state.duration, dom.videoPlayer.currentTime + (1 / fps));
+        syncPreviewToTimeline(Math.min(state.duration, state.playheadTime + (1 / fps)), false);
         return;
       }
 
@@ -2144,37 +2262,41 @@
       // ArrowLeft: Step back 1s (or 5s with Shift)
       if (e.code === 'ArrowLeft') {
         e.preventDefault();
+        if (state.isPlaying) stopTimelinePlayback();
         const step = e.shiftKey ? 5 : 1;
-        dom.videoPlayer.currentTime = Math.max(0, dom.videoPlayer.currentTime - step);
+        syncPreviewToTimeline(Math.max(0, state.playheadTime - step), false);
         return;
       }
 
       // ArrowRight: Step forward 1s (or 5s with Shift)
       if (e.code === 'ArrowRight') {
         e.preventDefault();
+        if (state.isPlaying) stopTimelinePlayback();
         const step = e.shiftKey ? 5 : 1;
-        dom.videoPlayer.currentTime = Math.min(state.duration, dom.videoPlayer.currentTime + step);
+        syncPreviewToTimeline(Math.min(state.duration, state.playheadTime + step), false);
         return;
       }
 
       // J: Step back 3s
       if (e.code === 'KeyJ') {
         e.preventDefault();
-        dom.videoPlayer.currentTime = Math.max(0, dom.videoPlayer.currentTime - 3);
+        if (state.isPlaying) stopTimelinePlayback();
+        syncPreviewToTimeline(Math.max(0, state.playheadTime - 3), false);
         return;
       }
 
       // K: Pause
       if (e.code === 'KeyK') {
         e.preventDefault();
-        dom.videoPlayer.pause();
+        stopTimelinePlayback();
         return;
       }
 
       // L: Step forward 3s
       if (e.code === 'KeyL') {
         e.preventDefault();
-        dom.videoPlayer.currentTime = Math.min(state.duration, dom.videoPlayer.currentTime + 3);
+        if (state.isPlaying) stopTimelinePlayback();
+        syncPreviewToTimeline(Math.min(state.duration, state.playheadTime + 3), false);
         return;
       }
 
@@ -2594,6 +2716,7 @@
           timeline_start: Math.round(c.timeline_start * 1000) / 1000,
           speed: c.speed || 1.0,
           volume: c.volume !== undefined ? c.volume : 1.0,
+          file_id: c.file_id || state.fileId,
         })),
       }));
     }
