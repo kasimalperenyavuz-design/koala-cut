@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import shutil
+import subprocess
+import sys
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -386,6 +388,26 @@ async def save_job_output_to_path(job_id: str, payload: SaveToRequest) -> SaveTo
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Dosya kaydedilemedi: {exc}") from exc
+
+
+@app.post("/api/jobs/{job_id}/open-folder")
+async def open_job_output_folder(job_id: str):
+    """Open File Explorer / Finder and highlight the output video file."""
+    job = job_manager.get_job(job_id)
+    if not job or not os.path.isfile(job.output_path):
+        raise HTTPException(status_code=404, detail="İş çıktısı bulunamadı.")
+
+    out_path = os.path.abspath(job.output_path)
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer.exe", f"/select,{out_path}"])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", out_path])
+        else:
+            subprocess.Popen(["xdg-open", os.path.dirname(out_path)])
+        return {"success": True, "path": out_path}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Klasör açılamadı: {exc}") from exc
 
 
 @app.get("/api/media/{file_id}")

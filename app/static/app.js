@@ -113,6 +113,8 @@
     timelinePlayheadLine: document.getElementById('timeline-playhead-line'),
     timelinePlayheadHead: document.getElementById('timeline-playhead-head'),
     timelineSnapGuide: document.getElementById('timeline-snap-guide'),
+    timelineHeadersContainer: document.getElementById('timeline-headers-container'),
+    timelineLanesArea: document.getElementById('timeline-lanes-area'),
     trackV1Clips: document.getElementById('track-v1-clips'),
     trackA1Clips: document.getElementById('track-a1-clips'),
     trimDurationBadge: document.getElementById('trim-duration-badge'),
@@ -120,6 +122,8 @@
     timelineSelectionHint: document.getElementById('timeline-selection-hint'),
 
     // Timeline Toolbar Controls
+    btnAddVideoTrack: document.getElementById('btn-add-video-track'),
+    btnAddAudioTrack: document.getElementById('btn-add-audio-track'),
     btnSplitClip: document.getElementById('btn-split-clip'),
     btnDeleteClip: document.getElementById('btn-delete-clip'),
     btnUndoTimeline: document.getElementById('btn-undo-timeline'),
@@ -174,6 +178,7 @@
     inspectorVolumeBadge: document.getElementById('inspector-volume-badge'),
     inputClipIn: document.getElementById('input-clip-in'),
     inputClipOut: document.getElementById('input-clip-out'),
+    selectClipTrack: document.getElementById('select-clip-track'),
 
     // Aspect & Fit
     aspectRatioSelector: document.getElementById('aspect-ratio-selector'),
@@ -229,6 +234,7 @@
     outputVideoPlayer: document.getElementById('output-video-player'),
     btnSaveAs: document.getElementById('btn-save-as'),
     btnDownloadOutput: document.getElementById('btn-download-output'),
+    btnOpenFolder: document.getElementById('btn-open-folder'),
     btnCopyLink: document.getElementById('btn-copy-link'),
     copyLinkText: document.getElementById('copy-link-text'),
     inputDirectSavePath: document.getElementById('input-direct-save-path'),
@@ -264,6 +270,15 @@
     repoEditBox: document.getElementById('repo-edit-box'),
     inputCustomRepo: document.getElementById('input-custom-repo'),
     btnSaveCustomRepo: document.getElementById('btn-save-custom-repo'),
+
+    // NLE Context Menu Elements
+    timelineContextMenu: document.getElementById('timeline-context-menu'),
+    contextClipActions: document.getElementById('context-clip-actions'),
+    contextTrackActions: document.getElementById('context-track-actions'),
+    contextClipLabel: document.getElementById('context-clip-label'),
+    contextClipDuration: document.getElementById('context-clip-duration'),
+    contextMuteText: document.getElementById('context-mute-text'),
+    contextTrackList: document.getElementById('context-track-list'),
 
     // Toast
     toastContainer: document.getElementById('toast-container'),
@@ -745,13 +760,12 @@
     if (!state.isSnappingEnabled) return rawTime;
 
     const snapPoints = [0, dom.videoPlayer.currentTime];
-    const v1 = getV1Track();
-    if (v1) {
-      v1.clips.forEach((c) => {
+    state.tracks.forEach((t) => {
+      (t.clips || []).forEach((c) => {
         snapPoints.push(c.timeline_start);
         snapPoints.push(c.timeline_start + getClipDuration(c));
       });
-    }
+    });
 
     let closest = rawTime;
     let minDiff = thresholdSeconds;
@@ -766,9 +780,14 @@
   }
 
   function calculateNetDuration() {
-    const v1 = getV1Track();
-    if (!v1 || v1.clips.length === 0) return state.duration;
-    return v1.clips.reduce((acc, c) => acc + getClipDuration(c), 0);
+    let maxEnd = 0;
+    state.tracks.forEach((track) => {
+      (track.clips || []).forEach((c) => {
+        const end = c.timeline_start + getClipDuration(c);
+        if (end > maxEnd) maxEnd = end;
+      });
+    });
+    return maxEnd > 0 ? maxEnd : state.duration;
   }
 
   function updateTimelineDurationBadge() {
@@ -776,10 +795,12 @@
     if (dom.trimDurationBadge) {
       dom.trimDurationBadge.textContent = formatTime(netDur);
     }
-    const v1 = getV1Track();
-    const clipCount = v1 ? v1.clips.length : 0;
+    let totalClips = 0;
+    state.tracks.forEach((t) => {
+      totalClips += (t.clips || []).length;
+    });
     if (dom.clipsCountBadge) {
-      dom.clipsCountBadge.textContent = `${clipCount} Klip`;
+      dom.clipsCountBadge.textContent = `${totalClips} Klip`;
     }
     updateExportSummary();
     updateSavingsEstimate();
@@ -837,102 +858,221 @@
     }
   }
 
-  // --- Tracks & Clips Rendering ---
+  // --- Dynamic Tracks & Clips Rendering ---
   function renderAllTracks() {
     renderTimelineRuler();
-    renderTrackV1();
-    renderTrackA1();
+    renderTrackHeaders();
+    renderTrackLanes();
     updatePlayheadPosition();
     updateClipInspector();
+    updateSelectClipTrackDropdown();
   }
 
-  function renderTrackV1() {
-    if (!dom.trackV1Clips) return;
-    dom.trackV1Clips.innerHTML = '';
+  function renderTrackHeaders() {
+    if (!dom.timelineHeadersContainer) return;
+    dom.timelineHeadersContainer.innerHTML = '';
 
-    const v1 = getV1Track();
-    if (!v1) return;
+    state.tracks.forEach((track) => {
+      const isVideo = track.type === 'video';
+      const isSelected = state.selectedTrackId === track.id;
+      const isBaseTrack = track.id === 'v1' || track.id === 'a1';
 
-    v1.clips.forEach((clip, index) => {
-      const clipDuration = getClipDuration(clip);
-      const clipEl = document.createElement('div');
-      const isSelected = clip.id === state.selectedClipId;
-      clipEl.className = `timeline-clip-card ${isSelected ? 'selected' : ''}`;
-      clipEl.dataset.clipId = clip.id;
-      clipEl.style.left = `${timeToPx(clip.timeline_start)}px`;
-      clipEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
+      const headerEl = document.createElement('div');
+      headerEl.className = `h-11 px-3 border-b border-white/5 flex items-center justify-between transition-colors ${
+        isSelected ? 'bg-indigo-950/40 border-l-2 border-l-indigo-500' : 'bg-slate-900/60'
+      }`;
+      headerEl.dataset.trackId = track.id;
 
-      const durStr = clipDuration.toFixed(1);
-      const speedBadge = clip.speed !== 1.0 ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${clip.speed}x</span>` : '';
+      const iconName = isVideo ? 'film' : 'volume-2';
+      const iconColor = isVideo ? 'text-indigo-400' : 'text-cyan-400';
+      const badgeColor = isVideo ? 'text-indigo-300' : 'text-cyan-300';
 
-      clipEl.innerHTML = `
-        <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Klibin başını kırp"></div>
-        <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none">
-          <i data-lucide="film" class="w-3.5 h-3.5 text-indigo-300 flex-shrink-0"></i>
-          <span class="text-xs font-semibold text-white truncate">Klip ${index + 1}</span>
-          ${speedBadge}
+      headerEl.innerHTML = `
+        <div class="flex items-center gap-2 min-w-0">
+          <i data-lucide="${iconName}" class="w-3.5 h-3.5 ${iconColor} flex-shrink-0"></i>
+          <span class="text-xs font-mono font-bold ${badgeColor}">${track.name}</span>
+          ${track.locked ? '<i data-lucide="lock" class="w-3 h-3 text-amber-400 flex-shrink-0"></i>' : ''}
         </div>
-        <div class="flex items-center gap-1 text-[10px] font-mono text-indigo-200 pointer-events-none flex-shrink-0">
-          <span>${durStr}s</span>
+        <div class="flex items-center gap-1">
+          ${
+            isVideo
+              ? `
+            <button class="btn-track-toggle-vis p-1 rounded hover:bg-white/10 ${track.visible === false ? 'text-slate-600' : 'text-slate-300'}" title="${track.visible === false ? 'İzi Göster' : 'İzi Gizle'}">
+              <i data-lucide="${track.visible === false ? 'eye-off' : 'eye'}" class="w-3.5 h-3.5"></i>
+            </button>
+          `
+              : `
+            <button class="btn-track-toggle-mute p-1 rounded hover:bg-white/10 ${track.muted ? 'text-slate-600' : 'text-slate-300'}" title="${track.muted ? 'Sesi Aç' : 'Sesi Kapat'}">
+              <i data-lucide="${track.muted ? 'volume-x' : 'volume-2'}" class="w-3.5 h-3.5"></i>
+            </button>
+          `
+          }
+          <button class="btn-track-toggle-lock p-1 rounded hover:bg-white/10 ${track.locked ? 'text-amber-400' : 'text-slate-500'}" title="${track.locked ? 'Kilidi Aç' : 'İzi Kilitle'}">
+            <i data-lucide="${track.locked ? 'lock' : 'unlock'}" class="w-3.5 h-3.5"></i>
+          </button>
+          ${
+            !isBaseTrack
+              ? `
+            <button class="btn-track-delete p-1 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400" title="İzi Kaldır">
+              <i data-lucide="trash-2" class="w-3 h-3"></i>
+            </button>
+          `
+              : ''
+          }
         </div>
-        <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Klibin sonunu kırp"></div>
       `;
 
-      clipEl.addEventListener('pointerdown', (e) => {
-        const action = e.target.dataset.action;
-        if (action === 'trim-left') {
-          initClipEdgeTrimming(clip, 'left', e);
-        } else if (action === 'trim-right') {
-          initClipEdgeTrimming(clip, 'right', e);
+      const btnVis = headerEl.querySelector('.btn-track-toggle-vis');
+      if (btnVis) {
+        btnVis.addEventListener('click', (e) => {
+          e.stopPropagation();
+          track.visible = track.visible === false;
+          renderAllTracks();
+        });
+      }
+
+      const btnMute = headerEl.querySelector('.btn-track-toggle-mute');
+      if (btnMute) {
+        btnMute.addEventListener('click', (e) => {
+          e.stopPropagation();
+          track.muted = !track.muted;
+          renderAllTracks();
+        });
+      }
+
+      const btnLock = headerEl.querySelector('.btn-track-toggle-lock');
+      if (btnLock) {
+        btnLock.addEventListener('click', (e) => {
+          e.stopPropagation();
+          track.locked = !track.locked;
+          renderAllTracks();
+        });
+      }
+
+      const btnDel = headerEl.querySelector('.btn-track-delete');
+      if (btnDel) {
+        btnDel.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteTrack(track.id);
+        });
+      }
+
+      headerEl.addEventListener('click', () => {
+        state.selectedTrackId = track.id;
+        renderTrackHeaders();
+      });
+
+      dom.timelineHeadersContainer.appendChild(headerEl);
+    });
+
+    refreshIcons();
+  }
+
+  function renderTrackLanes() {
+    if (!dom.timelineLanesArea) return;
+    dom.timelineLanesArea.innerHTML = '';
+
+    state.tracks.forEach((track) => {
+      const isVideo = track.type === 'video';
+      const laneEl = document.createElement('div');
+      laneEl.className = `relative w-full h-11 border-b border-white/5 track-lane-grid-bg overflow-visible flex items-center ${
+        track.locked ? 'opacity-60 pointer-events-none' : ''
+      }`;
+      laneEl.dataset.trackId = track.id;
+
+      (track.clips || []).forEach((clip, index) => {
+        const clipDuration = getClipDuration(clip);
+        const clipEl = document.createElement('div');
+        const isSelected = clip.id === state.selectedClipId;
+
+        if (isVideo) {
+          clipEl.className = `timeline-clip-card ${isSelected ? 'selected' : ''}`;
         } else {
-          selectClip(clip.id);
-          initClipDragging(clip, e);
+          clipEl.className = `timeline-audio-clip-card ${isSelected ? 'selected' : ''}`;
         }
+
+        clipEl.dataset.clipId = clip.id;
+        clipEl.dataset.trackId = track.id;
+        clipEl.style.left = `${timeToPx(clip.timeline_start)}px`;
+        clipEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
+
+        const durStr = clipDuration.toFixed(1);
+        const speedBadge =
+          clip.speed && clip.speed !== 1.0
+            ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${clip.speed}x</span>`
+            : '';
+        const volBadge =
+          !isVideo && clip.volume !== undefined && clip.volume !== 1.0
+            ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono">%${Math.round(clip.volume * 100)}</span>`
+            : '';
+
+        if (isVideo) {
+          clipEl.innerHTML = `
+            <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Klibin başını kırp"></div>
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none">
+              <i data-lucide="film" class="w-3.5 h-3.5 text-indigo-300 flex-shrink-0"></i>
+              <span class="text-xs font-semibold text-white truncate">Klip ${index + 1}</span>
+              ${speedBadge}
+            </div>
+            <div class="flex items-center gap-1 text-[10px] font-mono text-indigo-200 pointer-events-none flex-shrink-0">
+              <span>${durStr}s</span>
+            </div>
+            <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Klibin sonunu kırp"></div>
+          `;
+        } else {
+          clipEl.innerHTML = `
+            <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Sesin başını kırp"></div>
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none">
+              <i data-lucide="volume-2" class="w-3 h-3 text-cyan-400 flex-shrink-0"></i>
+              <span class="text-[11px] font-medium text-cyan-200 truncate">Ses ${index + 1}</span>
+              ${volBadge}
+            </div>
+            <div class="flex items-center gap-1 text-[10px] font-mono text-cyan-200 pointer-events-none flex-shrink-0">
+              <span>${durStr}s</span>
+            </div>
+            <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Sesin sonunu kırp"></div>
+          `;
+        }
+
+        clipEl.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          const action = e.target.dataset.action;
+          if (action === 'trim-left') {
+            initClipEdgeTrimming(clip, track, 'left', e);
+          } else if (action === 'trim-right') {
+            initClipEdgeTrimming(clip, track, 'right', e);
+          } else {
+            selectClip(clip.id);
+            initClipDragging(clip, track, e);
+          }
+        });
+
+        laneEl.appendChild(clipEl);
       });
 
-      dom.trackV1Clips.appendChild(clipEl);
+      dom.timelineLanesArea.appendChild(laneEl);
     });
 
     refreshIcons();
   }
 
-  function renderTrackA1() {
-    if (!dom.trackA1Clips) return;
-    dom.trackA1Clips.innerHTML = '';
-
-    const v1 = getV1Track();
-    if (!v1) return;
-
-    v1.clips.forEach((clip, index) => {
-      const clipDuration = getClipDuration(clip);
-      const audioEl = document.createElement('div');
-      const isSelected = clip.id === state.selectedClipId;
-      audioEl.className = `timeline-audio-clip-card ${isSelected ? 'selected' : ''}`;
-      audioEl.style.left = `${timeToPx(clip.timeline_start)}px`;
-      audioEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
-
-      const volStr = clip.volume !== 1.0 ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono">%${Math.round(clip.volume * 100)}</span>` : '';
-
-      audioEl.innerHTML = `
-        <div class="flex items-center gap-1.5 min-w-0 flex-1 pointer-events-none">
-          <i data-lucide="volume-2" class="w-3 h-3 text-cyan-400 flex-shrink-0"></i>
-          <span class="text-[11px] font-medium text-cyan-200 truncate">Ses ${index + 1}</span>
-          ${volStr}
-        </div>
-      `;
-
-      audioEl.addEventListener('click', () => {
-        selectClip(clip.id);
-      });
-
-      dom.trackA1Clips.appendChild(audioEl);
+  function updateSelectClipTrackDropdown() {
+    if (!dom.selectClipTrack) return;
+    const sel = getSelectedClip();
+    dom.selectClipTrack.innerHTML = '';
+    state.tracks.forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.name} (${t.type === 'video' ? 'Video' : 'Ses'})`;
+      if (sel && sel.track.id === t.id) {
+        opt.selected = true;
+      }
+      dom.selectClipTrack.appendChild(opt);
     });
-
-    refreshIcons();
   }
 
   // --- Edge Trimming Drag (Left & Right Handles) ---
-  function initClipEdgeTrimming(clip, edge, downEvent) {
+  function initClipEdgeTrimming(clip, track, edge, downEvent) {
     downEvent.stopPropagation();
     downEvent.preventDefault();
     pushTimelineHistory();
@@ -971,7 +1111,7 @@
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       if (state.isRippleEnabled) {
-        rippleAlignClips();
+        rippleAlignClips(track);
       }
       renderAllTracks();
       updateTimelineDurationBadge();
@@ -982,7 +1122,7 @@
   }
 
   // --- Clip Position Dragging on Track ---
-  function initClipDragging(clip, downEvent) {
+  function initClipDragging(clip, track, downEvent) {
     downEvent.preventDefault();
     const startX = downEvent.clientX;
     const origTimelineStart = clip.timeline_start;
@@ -1006,8 +1146,7 @@
         dom.timelineSnapGuide.style.left = `${timeToPx(clip.timeline_start)}px`;
       }
 
-      renderTrackV1();
-      renderTrackA1();
+      renderTrackLanes();
     };
 
     const onPointerUp = () => {
@@ -1017,10 +1156,9 @@
         dom.timelineSnapGuide.classList.add('hidden');
       }
       if (hasMoved) {
-        const v1 = getV1Track();
-        if (v1) v1.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+        track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
         if (state.isRippleEnabled) {
-          rippleAlignClips();
+          rippleAlignClips(track);
         }
         renderAllTracks();
         updateTimelineDurationBadge();
@@ -1031,12 +1169,12 @@
     window.addEventListener('pointerup', onPointerUp);
   }
 
-  function rippleAlignClips() {
-    const v1 = getV1Track();
-    if (!v1 || v1.clips.length === 0) return;
-    v1.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+  function rippleAlignClips(targetTrack) {
+    const t = targetTrack || getV1Track();
+    if (!t || !t.clips || t.clips.length === 0) return;
+    t.clips.sort((a, b) => a.timeline_start - b.timeline_start);
     let cur = 0;
-    v1.clips.forEach((c) => {
+    t.clips.forEach((c) => {
       c.timeline_start = Math.round(cur * 100) / 100;
       cur += getClipDuration(c);
     });
@@ -1046,10 +1184,11 @@
   function splitClipAtPlayhead() {
     if (state.duration <= 0) return;
     const cur = dom.videoPlayer.currentTime;
-    const v1 = getV1Track();
-    if (!v1 || v1.clips.length === 0) return;
 
-    const targetIdx = v1.clips.findIndex(
+    const track = state.tracks.find((t) => t.id === state.selectedTrackId) || getV1Track();
+    if (!track || !track.clips || track.clips.length === 0) return;
+
+    const targetIdx = track.clips.findIndex(
       (c) => cur > c.in_point + 0.15 && cur < c.out_point - 0.15
     );
 
@@ -1059,7 +1198,7 @@
     }
 
     pushTimelineHistory();
-    const targetClip = v1.clips[targetIdx];
+    const targetClip = track.clips[targetIdx];
     const curRounded = Math.round(cur * 100) / 100;
     const splitOffset = (curRounded - targetClip.in_point) / (targetClip.speed || 1.0);
 
@@ -1080,8 +1219,8 @@
       targetClip.volume
     );
 
-    v1.clips.splice(targetIdx, 1, clipA, clipB);
-    if (state.isRippleEnabled) rippleAlignClips();
+    track.clips.splice(targetIdx, 1, clipA, clipB);
+    if (state.isRippleEnabled) rippleAlignClips(track);
 
     selectClip(clipB.id);
     renderAllTracks();
@@ -1091,11 +1230,14 @@
 
   function selectClip(clipId) {
     state.selectedClipId = clipId;
+    const sel = getSelectedClip();
+    if (sel) {
+      state.selectedTrackId = sel.track.id;
+    }
     if (dom.btnDeleteClip) {
       dom.btnDeleteClip.classList.remove('opacity-50', 'pointer-events-none');
     }
-    renderTrackV1();
-    renderTrackA1();
+    renderAllTracks();
     updateClipInspector();
     activateInspectorTab('clip');
   }
@@ -1105,21 +1247,27 @@
       showToast('Lütfen silmek istediğiniz klibe tıklayın.', 'info');
       return;
     }
-    const v1 = getV1Track();
-    if (!v1 || v1.clips.length <= 1) {
+    const sel = getSelectedClip();
+    if (!sel) return;
+    const { clip, track } = sel;
+
+    // Check if total video clips <= 1 across all video tracks
+    let totalVideoClips = 0;
+    state.tracks.filter((t) => t.type === 'video').forEach((t) => (totalVideoClips += t.clips.length));
+    if (track.type === 'video' && totalVideoClips <= 1) {
       showToast('Videonun tamamını silemezsiniz! Sıfırlamak için Sıfırla butonunu kullanın.', 'error');
       return;
     }
 
     pushTimelineHistory();
-    const delIdx = v1.clips.findIndex((c) => c.id === state.selectedClipId);
+    const delIdx = track.clips.findIndex((c) => c.id === state.selectedClipId);
     if (delIdx !== -1) {
-      const removed = v1.clips.splice(delIdx, 1)[0];
+      const removed = track.clips.splice(delIdx, 1)[0];
       state.selectedClipId = null;
       if (dom.btnDeleteClip) {
         dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
       }
-      if (state.isRippleEnabled) rippleAlignClips();
+      if (state.isRippleEnabled) rippleAlignClips(track);
 
       renderAllTracks();
       updateTimelineDurationBadge();
@@ -1128,15 +1276,113 @@
     }
   }
 
+  function duplicateClip(clipId) {
+    const sel = getSelectedClip();
+    if (!sel) return;
+    const { clip, track } = sel;
+    pushTimelineHistory();
+    const newId = `clip-${++clipCounter}`;
+    const newClip = createClip(
+      newId,
+      clip.in_point,
+      clip.out_point,
+      clip.timeline_start + getClipDuration(clip) + 0.2,
+      clip.speed,
+      clip.volume
+    );
+    track.clips.push(newClip);
+    track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+    selectClip(newId);
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    showToast('Klip çoğaltıldı (Duplicate) 📋', 'success');
+  }
+
+  function moveClipToTrack(clipId, targetTrackId) {
+    const sel = getSelectedClip();
+    if (!sel) return;
+    const { clip, track: sourceTrack } = sel;
+    if (sourceTrack.id === targetTrackId) return;
+    const targetTrack = state.tracks.find((t) => t.id === targetTrackId);
+    if (!targetTrack) return;
+
+    pushTimelineHistory();
+    sourceTrack.clips = sourceTrack.clips.filter((c) => c.id !== clipId);
+    targetTrack.clips.push(clip);
+    targetTrack.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+    state.selectedTrackId = targetTrackId;
+    renderAllTracks();
+    updateClipInspector();
+    showToast(`Klip ${targetTrack.name} kanalına taşındı.`, 'info');
+  }
+
+  function addTrack(type) {
+    const prefix = type === 'video' ? 'v' : 'a';
+    const sameTypeTracks = state.tracks.filter((t) => t.type === type);
+    let maxNum = 0;
+    sameTypeTracks.forEach((t) => {
+      const num = parseInt(t.id.replace(prefix, ''), 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    });
+    const nextNum = maxNum + 1;
+    const id = `${prefix}${nextNum}`;
+    const name = `${prefix.toUpperCase()}${nextNum}`;
+
+    const newTrack = {
+      id,
+      type,
+      name,
+      locked: false,
+      clips: [],
+    };
+    if (type === 'video') newTrack.visible = true;
+    else newTrack.muted = false;
+
+    pushTimelineHistory();
+    if (type === 'video') {
+      const lastVideoIdx = state.tracks.map((t) => t.type).lastIndexOf('video');
+      state.tracks.splice(lastVideoIdx + 1, 0, newTrack);
+    } else {
+      state.tracks.push(newTrack);
+    }
+
+    state.selectedTrackId = id;
+    renderAllTracks();
+    showToast(`Yeni ${type === 'video' ? 'video' : 'ses'} izi eklendi (${name}) 🎬`, 'success');
+  }
+
+  function deleteTrack(trackId) {
+    if (trackId === 'v1' || trackId === 'a1') {
+      showToast('Temel izler (V1, A1) silinemez.', 'info');
+      return;
+    }
+    const idx = state.tracks.findIndex((t) => t.id === trackId);
+    if (idx === -1) return;
+
+    pushTimelineHistory();
+    state.tracks.splice(idx, 1);
+    if (state.selectedTrackId === trackId) {
+      state.selectedTrackId = 'v1';
+    }
+    if (state.selectedClipId && !getSelectedClip()) {
+      state.selectedClipId = null;
+    }
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    updateClipInspector();
+    showToast('Kanal silindi 🗑️', 'info');
+  }
+
   function resetTimeline() {
     if (state.duration <= 0) return;
     pushTimelineHistory();
     clipCounter = 1;
-    const v1 = getV1Track();
-    if (v1) {
-      v1.clips = [createClip(`clip-${clipCounter}`, 0.0, state.duration, 0.0, 1.0, 1.0)];
-    }
+    state.tracks = [
+      { id: 'v1', type: 'video', name: 'V1', visible: true, locked: false, clips: [createClip('clip-1', 0.0, state.duration, 0.0, 1.0, 1.0)] },
+      { id: 'a1', type: 'audio', name: 'A1', muted: false, locked: false, clips: [] },
+    ];
     state.selectedClipId = null;
+    state.selectedTrackId = 'v1';
     if (dom.btnDeleteClip) {
       dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
     }
@@ -1160,35 +1406,43 @@
       return;
     }
 
-    const { clip } = sel;
+    const { clip, track } = sel;
     if (dom.clipEmptyState) dom.clipEmptyState.classList.add('hidden');
     if (dom.clipActiveInspector) dom.clipActiveInspector.classList.remove('hidden');
     if (dom.clipInspectorBadge) {
-      dom.clipInspectorBadge.textContent = `${clip.id.toUpperCase()}`;
+      dom.clipInspectorBadge.textContent = `${track.name}: ${clip.id.toUpperCase()}`;
       dom.clipInspectorBadge.className = 'px-2 py-0.5 text-[10px] font-bold font-mono rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
     }
 
-    const v1 = getV1Track();
-    const clipIdx = v1 ? v1.clips.findIndex((c) => c.id === clip.id) + 1 : 1;
-    if (dom.inspectorClipTitle) dom.inspectorClipTitle.textContent = `Klip ${clipIdx}`;
+    const clipIdx = track.clips.findIndex((c) => c.id === clip.id) + 1;
+    if (dom.inspectorClipTitle) dom.inspectorClipTitle.textContent = `${track.name} - Klip ${clipIdx}`;
     if (dom.inspectorClipTiming) {
       dom.inspectorClipTiming.textContent = `${formatTime(clip.in_point)} - ${formatTime(clip.out_point)} • ${getClipDuration(clip).toFixed(1)}s`;
     }
     if (dom.timelineSelectionHint) {
-      dom.timelineSelectionHint.textContent = `Seçili: Klip ${clipIdx} (${formatTime(clip.in_point)} - ${formatTime(clip.out_point)})`;
+      dom.timelineSelectionHint.textContent = `Seçili: ${track.name} Klip ${clipIdx} (${formatTime(clip.in_point)} - ${formatTime(clip.out_point)})`;
     }
 
     if (dom.sliderClipSpeed) dom.sliderClipSpeed.value = clip.speed || 1.0;
     if (dom.inspectorSpeedBadge) dom.inspectorSpeedBadge.textContent = `${clip.speed || 1.0}x`;
-    if (dom.sliderClipVolume) dom.sliderClipVolume.value = Math.round((clip.volume || 1.0) * 100);
-    if (dom.inspectorVolumeBadge) dom.inspectorVolumeBadge.textContent = `%${Math.round((clip.volume || 1.0) * 100)}`;
+    if (dom.sliderClipVolume) dom.sliderClipVolume.value = Math.round((clip.volume !== undefined ? clip.volume : 1.0) * 100);
+    if (dom.inspectorVolumeBadge) dom.inspectorVolumeBadge.textContent = `%${Math.round((clip.volume !== undefined ? clip.volume : 1.0) * 100)}`;
     if (dom.inputClipIn) dom.inputClipIn.value = clip.in_point.toFixed(1);
     if (dom.inputClipOut) dom.inputClipOut.value = clip.out_point.toFixed(1);
+    if (dom.selectClipTrack) dom.selectClipTrack.value = track.id;
   }
 
   function initClipInspectorListeners() {
     if (dom.btnInspectorDeleteClip) {
       dom.btnInspectorDeleteClip.addEventListener('click', deleteSelectedClip);
+    }
+
+    if (dom.selectClipTrack) {
+      dom.selectClipTrack.addEventListener('change', (e) => {
+        if (state.selectedClipId) {
+          moveClipToTrack(state.selectedClipId, e.target.value);
+        }
+      });
     }
 
     if (dom.sliderClipSpeed) {
@@ -1197,7 +1451,7 @@
         if (!sel) return;
         sel.clip.speed = parseFloat(e.target.value);
         if (dom.inspectorSpeedBadge) dom.inspectorSpeedBadge.textContent = `${sel.clip.speed}x`;
-        if (state.isRippleEnabled) rippleAlignClips();
+        if (state.isRippleEnabled) rippleAlignClips(sel.track);
         renderAllTracks();
         updateTimelineDurationBadge();
       });
@@ -1210,7 +1464,7 @@
         sel.clip.speed = parseFloat(btn.dataset.speed);
         if (dom.sliderClipSpeed) dom.sliderClipSpeed.value = sel.clip.speed;
         if (dom.inspectorSpeedBadge) dom.inspectorSpeedBadge.textContent = `${sel.clip.speed}x`;
-        if (state.isRippleEnabled) rippleAlignClips();
+        if (state.isRippleEnabled) rippleAlignClips(sel.track);
         renderAllTracks();
         updateTimelineDurationBadge();
       });
@@ -1222,7 +1476,7 @@
         if (!sel) return;
         sel.clip.volume = parseInt(e.target.value, 10) / 100;
         if (dom.inspectorVolumeBadge) dom.inspectorVolumeBadge.textContent = `%${e.target.value}`;
-        renderTrackA1();
+        renderTrackLanes();
       });
     }
 
@@ -1233,7 +1487,7 @@
         const val = parseFloat(e.target.value);
         if (!isNaN(val) && val >= 0 && val < sel.clip.out_point) {
           sel.clip.in_point = val;
-          if (state.isRippleEnabled) rippleAlignClips();
+          if (state.isRippleEnabled) rippleAlignClips(sel.track);
           renderAllTracks();
           updateTimelineDurationBadge();
           updateClipInspector();
@@ -1248,7 +1502,7 @@
         const val = parseFloat(e.target.value);
         if (!isNaN(val) && val > sel.clip.in_point && val <= state.duration) {
           sel.clip.out_point = val;
-          if (state.isRippleEnabled) rippleAlignClips();
+          if (state.isRippleEnabled) rippleAlignClips(sel.track);
           renderAllTracks();
           updateTimelineDurationBadge();
           updateClipInspector();
@@ -1265,26 +1519,37 @@
   }
 
   function initTimelineRulerScrubber() {
-    if (!dom.timelineRuler) return;
-
     let isScrubbing = false;
 
     const seekAtEvent = (e) => {
-      const rect = dom.timelineRuler.getBoundingClientRect();
-      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-      const scrollLeft = dom.timelineScrollViewport ? dom.timelineScrollViewport.scrollLeft : 0;
-      const offsetX = clientX - rect.left + scrollLeft;
+      if (!dom.timelineCanvas) return;
+      const canvasRect = dom.timelineCanvas.getBoundingClientRect();
+      const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const offsetX = clientX - canvasRect.left;
       const targetTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
+
+      if (dom.timelinePlayheadLine) {
+        dom.timelinePlayheadLine.style.left = `${Math.max(0, offsetX)}px`;
+      }
       dom.videoPlayer.currentTime = targetTime;
-      updatePlayheadPosition();
+      if (dom.playerCurrentTime) {
+        dom.playerCurrentTime.textContent = formatTime(targetTime);
+      }
     };
 
-    dom.timelineRuler.addEventListener('pointerdown', (e) => {
+    const startScrubbing = (e) => {
       isScrubbing = true;
+      document.body.classList.add('scrubbing-active');
+      if (e.target && e.target.setPointerCapture && e.pointerId !== undefined) {
+        try {
+          e.target.setPointerCapture(e.pointerId);
+        } catch (_) {}
+      }
       seekAtEvent(e);
       window.addEventListener('pointermove', onPointerMove);
       window.addEventListener('pointerup', onPointerUp);
-    });
+      window.addEventListener('pointercancel', onPointerUp);
+    };
 
     const onPointerMove = (e) => {
       if (!isScrubbing) return;
@@ -1292,10 +1557,33 @@
     };
 
     const onPointerUp = () => {
+      if (!isScrubbing) return;
       isScrubbing = false;
+      document.body.classList.remove('scrubbing-active');
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      updatePlayheadPosition();
     };
+
+    if (dom.timelineRuler) {
+      dom.timelineRuler.addEventListener('pointerdown', startScrubbing);
+    }
+    if (dom.timelinePlayheadHead) {
+      dom.timelinePlayheadHead.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        startScrubbing(e);
+      });
+    }
+    if (dom.timelineLanesArea) {
+      dom.timelineLanesArea.addEventListener('pointerdown', (e) => {
+        if (e.target === dom.timelineLanesArea || e.target.classList.contains('track-lane-grid-bg')) {
+          if (e.button === 0) {
+            startScrubbing(e);
+          }
+        }
+      });
+    }
   }
 
   // --- Zoom Controls ---
@@ -1333,12 +1621,154 @@
     }
   }
 
+  // --- NLE Context Menu System ---
+  let contextClickedTime = 0;
+
+  function initTimelineContextMenu() {
+    if (!dom.capcutTimelineStudio || !dom.timelineContextMenu) return;
+
+    dom.capcutTimelineStudio.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openContextMenu(e);
+    });
+
+    if (dom.viewEditor) {
+      dom.viewEditor.addEventListener('contextmenu', (e) => {
+        if (e.target.closest('#capcut-timeline-studio') || e.target.closest('#video-player-container')) {
+          e.preventDefault();
+        }
+      });
+    }
+
+    function openContextMenu(e) {
+      const clipCard = e.target.closest('.timeline-clip-card, .timeline-audio-clip-card');
+      const canvasRect = dom.timelineCanvas ? dom.timelineCanvas.getBoundingClientRect() : { left: 0 };
+      const clickOffset = e.clientX - canvasRect.left;
+      contextClickedTime = Math.max(0, Math.min(state.duration, pxToTime(clickOffset)));
+
+      if (clipCard) {
+        const clipId = clipCard.dataset.clipId;
+        selectClip(clipId);
+        const sel = getSelectedClip();
+        if (sel) {
+          const { clip, track } = sel;
+          if (dom.contextClipActions) dom.contextClipActions.classList.remove('hidden');
+          if (dom.contextTrackActions) dom.contextTrackActions.classList.add('hidden');
+          if (dom.contextClipLabel) dom.contextClipLabel.textContent = `${track.name}: ${clip.id.toUpperCase()}`;
+          if (dom.contextClipDuration) dom.contextClipDuration.textContent = `${getClipDuration(clip).toFixed(1)}s`;
+          if (dom.contextMuteText) {
+            dom.contextMuteText.textContent = clip.volume === 0 ? 'Klip Sesini Aç' : 'Klip Sesini Kapat';
+          }
+
+          if (dom.contextTrackList) {
+            dom.contextTrackList.innerHTML = '';
+            state.tracks.forEach((t) => {
+              const pill = document.createElement('button');
+              const isCurr = t.id === track.id;
+              pill.className = `px-2 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-all ${
+                isCurr ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`;
+              pill.textContent = t.name;
+              pill.title = `${t.name} izine taşı`;
+              pill.addEventListener('click', () => {
+                moveClipToTrack(clip.id, t.id);
+                closeContextMenu();
+              });
+              dom.contextTrackList.appendChild(pill);
+            });
+          }
+        }
+      } else {
+        if (dom.contextClipActions) dom.contextClipActions.classList.add('hidden');
+        if (dom.contextTrackActions) dom.contextTrackActions.classList.remove('hidden');
+      }
+
+      const menuWidth = 220;
+      const menuHeight = 280;
+      const left = Math.min(window.innerWidth - menuWidth - 10, Math.max(10, e.clientX));
+      const top = Math.min(window.innerHeight - menuHeight - 10, Math.max(10, e.clientY));
+
+      dom.timelineContextMenu.style.left = `${left}px`;
+      dom.timelineContextMenu.style.top = `${top}px`;
+      dom.timelineContextMenu.classList.remove('hidden');
+      refreshIcons();
+    }
+
+    function closeContextMenu() {
+      if (dom.timelineContextMenu) {
+        dom.timelineContextMenu.classList.add('hidden');
+      }
+    }
+
+    window.addEventListener('pointerdown', (e) => {
+      if (dom.timelineContextMenu && !dom.timelineContextMenu.contains(e.target)) {
+        closeContextMenu();
+      }
+    });
+
+    dom.timelineContextMenu.querySelectorAll('[data-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        closeContextMenu();
+
+        if (action === 'split') {
+          splitClipAtPlayhead();
+        } else if (action === 'delete') {
+          deleteSelectedClip();
+        } else if (action === 'duplicate') {
+          if (state.selectedClipId) duplicateClip(state.selectedClipId);
+        } else if (action === 'mute-toggle') {
+          const sel = getSelectedClip();
+          if (sel) {
+            pushTimelineHistory();
+            sel.clip.volume = sel.clip.volume === 0 ? 1.0 : 0;
+            renderAllTracks();
+            updateClipInspector();
+            showToast(`Klip sesi ${sel.clip.volume === 0 ? 'kapatıldı 🔇' : 'açıldı 🔊'}`, 'info');
+          }
+        } else if (action === 'add-video-track') {
+          addTrack('video');
+        } else if (action === 'add-audio-track') {
+          addTrack('audio');
+        } else if (action === 'ripple-close-gaps') {
+          pushTimelineHistory();
+          state.tracks.forEach((t) => rippleAlignClips(t));
+          renderAllTracks();
+          updateTimelineDurationBadge();
+          showToast('Tüm kanallardaki boşluklar kapatıldı ⚡', 'success');
+        } else if (action === 'set-playhead-here') {
+          dom.videoPlayer.currentTime = contextClickedTime;
+          updatePlayheadPosition();
+        }
+      });
+    });
+
+    dom.timelineContextMenu.querySelectorAll('.context-speed-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const speed = parseFloat(btn.dataset.speed);
+        const sel = getSelectedClip();
+        if (sel && speed) {
+          pushTimelineHistory();
+          sel.clip.speed = speed;
+          if (state.isRippleEnabled) rippleAlignClips(sel.track);
+          renderAllTracks();
+          updateTimelineDurationBadge();
+          updateClipInspector();
+          showToast(`Klip hızı ${speed}x yapıldı ⚡`, 'info');
+        }
+        closeContextMenu();
+      });
+    });
+  }
+
   // --- Toolbar Handlers ---
   function initCapCutTimelineStudio() {
     if (dom.btnSplitClip) dom.btnSplitClip.addEventListener('click', splitClipAtPlayhead);
     if (dom.btnDeleteClip) dom.btnDeleteClip.addEventListener('click', deleteSelectedClip);
     if (dom.btnUndoTimeline) dom.btnUndoTimeline.addEventListener('click', undoTimeline);
     if (dom.btnResetTimeline) dom.btnResetTimeline.addEventListener('click', resetTimeline);
+    if (dom.btnAddVideoTrack) dom.btnAddVideoTrack.addEventListener('click', () => addTrack('video'));
+    if (dom.btnAddAudioTrack) dom.btnAddAudioTrack.addEventListener('click', () => addTrack('audio'));
 
     if (dom.btnToggleSnap) {
       dom.btnToggleSnap.addEventListener('click', () => {
@@ -1364,7 +1794,7 @@
           dom.rippleStatusText.textContent = `Boşluğu Kapat: ${state.isRippleEnabled ? 'Açık' : 'Kapalı'}`;
         }
         if (state.isRippleEnabled) {
-          rippleAlignClips();
+          state.tracks.forEach((t) => rippleAlignClips(t));
           renderAllTracks();
         }
       });
@@ -1373,6 +1803,7 @@
     initZoomControls();
     initTimelineRulerScrubber();
     initClipInspectorListeners();
+    initTimelineContextMenu();
   }
 
   // ---------------------------------------------------------------------------
@@ -1419,6 +1850,31 @@
           e.preventDefault();
           deleteSelectedClip();
         }
+        return;
+      }
+
+      // Guard F5 / Ctrl+R to prevent accidental project loss
+      if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.code === 'KeyR')) {
+        if (state.view === 'editor') {
+          e.preventDefault();
+          showToast('Kurgunuzun kaybolmaması için sayfa yenileme engellendi. Baştan başlamak için "Yeni Video" butonunu kullanın.', 'info');
+          return;
+        }
+      }
+
+      // Comma (,): Step 1 frame back
+      if (e.code === 'Comma') {
+        e.preventDefault();
+        const fps = (state.metadata && state.metadata.video && state.metadata.video.fps) || 30;
+        dom.videoPlayer.currentTime = Math.max(0, dom.videoPlayer.currentTime - (1 / fps));
+        return;
+      }
+
+      // Period (.): Step 1 frame forward
+      if (e.code === 'Period') {
+        e.preventDefault();
+        const fps = (state.metadata && state.metadata.video && state.metadata.video.fps) || 30;
+        dom.videoPlayer.currentTime = Math.min(state.duration, dom.videoPlayer.currentTime + (1 / fps));
         return;
       }
 
@@ -1870,22 +2326,20 @@
     };
 
     // Multi-track Timeline Tracks & Clips
-    const v1 = getV1Track();
-    if (v1 && v1.clips && v1.clips.length > 0) {
-      config.timeline_tracks = [
-        {
-          id: 'v1',
-          type: 'video',
-          clips: v1.clips.map((c) => ({
-            id: c.id,
-            in_point: Math.round(c.in_point * 1000) / 1000,
-            out_point: Math.round(c.out_point * 1000) / 1000,
-            timeline_start: Math.round(c.timeline_start * 1000) / 1000,
-            speed: c.speed || 1.0,
-            volume: c.volume !== undefined ? c.volume : 1.0,
-          })),
-        },
-      ];
+    const activeTracks = state.tracks.filter((t) => t.clips && t.clips.length > 0);
+    if (activeTracks.length > 0) {
+      config.timeline_tracks = activeTracks.map((t) => ({
+        id: t.id,
+        type: t.type,
+        clips: t.clips.map((c) => ({
+          id: c.id,
+          in_point: Math.round(c.in_point * 1000) / 1000,
+          out_point: Math.round(c.out_point * 1000) / 1000,
+          timeline_start: Math.round(c.timeline_start * 1000) / 1000,
+          speed: c.speed || 1.0,
+          volume: c.volume !== undefined ? c.volume : 1.0,
+        })),
+      }));
     }
 
     // Aspect Ratio
@@ -2168,6 +2622,22 @@
     const downloadUrl = `/api/download/${jobEvent.job_id}`;
     dom.btnDownloadOutput.href = downloadUrl;
     dom.btnDownloadOutput.setAttribute('download', outputFilename);
+
+    if (dom.btnOpenFolder) {
+      dom.btnOpenFolder.onclick = async () => {
+        try {
+          const res = await fetch(`/api/jobs/${jobEvent.job_id}/open-folder`, { method: 'POST' });
+          const data = await res.json();
+          if (res.ok && data.status === 'opened') {
+            showToast('Dosya konumu Windows Gezgininde açıldı 📁', 'success');
+          } else {
+            showToast(data.detail || 'Klasör açılamadı', 'error');
+          }
+        } catch (err) {
+          showToast('Klasör açılırken hata oluştu: ' + err.message, 'error');
+        }
+      };
+    }
 
     // Save As button handlers
     dom.btnSaveAs.onclick = () => saveVideoWithPicker(jobEvent.job_id, outputFilename);

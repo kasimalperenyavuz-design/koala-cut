@@ -378,3 +378,32 @@ def test_save_job_output_to_custom_path(client, test_video, tmp_path):
     assert save_res2.status_code == 200
     assert target_file.is_file()
     assert target_file.stat().st_size > 0
+
+
+def test_open_folder_endpoint(client, monkeypatch, tmp_path):
+    """Test POST /api/jobs/{job_id}/open-folder with nonexistent and valid jobs."""
+    # 1. Nonexistent job should 404
+    res = client.post("/api/jobs/nonexistent-job-id/open-folder")
+    assert res.status_code == 404
+
+    # 2. Mock subprocess.Popen for a completed job
+    mock_called = []
+    monkeypatch.setattr("subprocess.Popen", lambda *args, **kwargs: mock_called.append(args))
+
+    from app.main import job_manager
+    from app.engine.builder import VideoFilterConfig
+    out_file = tmp_path / "dummy_out.mp4"
+    out_file.write_bytes(b"dummy")
+
+    job = job_manager.create_job(
+        input_path="dummy.mp4",
+        output_path=str(out_file),
+        config=VideoFilterConfig(),
+    )
+    job.status = "completed"
+
+    res_valid = client.post(f"/api/jobs/{job.id}/open-folder")
+    assert res_valid.status_code == 200
+    data = res_valid.json()
+    assert data["success"] is True
+    assert len(mock_called) == 1

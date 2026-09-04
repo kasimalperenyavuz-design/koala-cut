@@ -589,3 +589,24 @@ input[type=range]::-moz-range-thumb {
   background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
+/* NLE Context Menu & Playhead Scrubbing Enhancements */
+#timeline-context-menu {
+  z-index: 100 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.96) !important;
+}
+
+#timeline-playhead-head:hover {
+  box-shadow: 0 0 14px #f43f5e, 0 0 24px #f43f5e;
+}
+
+.scrubbing-active {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+
+.scrubbing-active #timeline-playhead-line {
+  transition: none !important;
+}
+
+
