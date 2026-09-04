@@ -33,6 +33,11 @@
     playheadTime: 0.0,
     isPlaying: false,
     isPlayingTrim: false,
+    rangeSelection: {
+      active: false,
+      start: 0,
+      end: 0,
+    },
 
     // Transformation Settings
     aspectRatio: 'original',
@@ -114,6 +119,17 @@
     rulerCanvas: document.getElementById('ruler-canvas'),
     timelinePlayheadLine: document.getElementById('timeline-playhead-line'),
     timelinePlayheadHead: document.getElementById('timeline-playhead-head'),
+    playheadWingLeft: document.getElementById('playhead-wing-left'),
+    playheadWingRight: document.getElementById('playhead-wing-right'),
+    timelineRangeOverlay: document.getElementById('timeline-range-overlay'),
+    timelineRangeToolbar: document.getElementById('timeline-range-toolbar'),
+    rangeDurationBadge: document.getElementById('range-duration-badge'),
+    btnRangeTrim: document.getElementById('btn-range-trim'),
+    btnRangeDelete: document.getElementById('btn-range-delete'),
+    btnRangeSplit: document.getElementById('btn-range-split'),
+    btnRangeClear: document.getElementById('btn-range-clear'),
+    rangeHandleIn: document.getElementById('range-handle-in'),
+    rangeHandleOut: document.getElementById('range-handle-out'),
     timelineSnapGuide: document.getElementById('timeline-snap-guide'),
     timelineHeadersContainer: document.getElementById('timeline-headers-container'),
     timelineLanesArea: document.getElementById('timeline-lanes-area'),
@@ -612,6 +628,83 @@
   let currentLoadedFileId = null;
   let timelinePlaybackRaf = null;
   let lastTimelinePlaybackTime = 0;
+  const backgroundAudioPlayers = new Map(); // clipId -> HTMLAudioElement
+
+  function stopAllBackgroundAudio() {
+    backgroundAudioPlayers.forEach((player) => {
+      try {
+        player.pause();
+      } catch (_) {}
+    });
+    backgroundAudioPlayers.clear();
+  }
+
+  function syncBackgroundAudio(targetTime, isPlaying, activeVideoClipId = null) {
+    const activeAudioIds = new Set();
+
+    (state.tracks || []).forEach((track) => {
+      if (track.muted) return; // Muted tracks produce no sound
+
+      (track.clips || []).forEach((clip) => {
+        const clipStart = clip.timeline_start || 0;
+        const clipDur = getClipDuration(clip);
+
+        if (targetTime >= clipStart && targetTime < clipStart + clipDur) {
+          // If this is the active video clip and its video player is unmuted, skip duplicate audio
+          if (clip.id === activeVideoClipId && track.type === 'video' && !track.muted) {
+            return;
+          }
+
+          activeAudioIds.add(clip.id);
+          const speed = clip.speed || 1.0;
+          const offsetInClip = (targetTime - clipStart) * speed;
+          const sourceTime = clip.in_point + offsetInClip;
+          const fileId = clip.file_id || state.fileId;
+          const streamSrc = clip.preview_url || `/api/media/${fileId}`;
+          const vol = Math.max(0, Math.min(1, clip.volume !== undefined ? clip.volume : 1.0));
+
+          let player = backgroundAudioPlayers.get(clip.id);
+          if (!player) {
+            player = new Audio();
+            player.preload = 'auto';
+            player.src = streamSrc;
+            backgroundAudioPlayers.set(clip.id, player);
+          } else if (player.src !== streamSrc && !player.src.endsWith(streamSrc)) {
+            player.src = streamSrc;
+          }
+
+          player.volume = vol;
+          player.playbackRate = speed;
+
+          if (isPlaying && state.isPlaying) {
+            if (Math.abs(player.currentTime - sourceTime) > 0.35) {
+              player.currentTime = sourceTime;
+            }
+            if (player.paused) {
+              player.play().catch(() => {});
+            }
+          } else {
+            if (!player.paused) {
+              player.pause();
+            }
+            if (Math.abs(player.currentTime - sourceTime) > 0.05) {
+              player.currentTime = sourceTime;
+            }
+          }
+        }
+      });
+    });
+
+    // Pause and clean up any players that are no longer active
+    for (const [id, player] of backgroundAudioPlayers.entries()) {
+      if (!activeAudioIds.has(id)) {
+        try {
+          player.pause();
+        } catch (_) {}
+        backgroundAudioPlayers.delete(id);
+      }
+    }
+  }
 
   function getActiveVideoClipAtTime(t) {
     // Search visible video tracks from top to bottom (e.g. V3, V2, V1)
@@ -648,14 +741,20 @@
     }
 
     const active = getActiveVideoClipAtTime(state.playheadTime);
+    let activeVideoClipId = null;
 
     if (active) {
-      const { clip } = active;
+      const { clip, track } = active;
+      activeVideoClipId = clip.id;
       const fileId = clip.file_id || state.fileId;
       const speed = clip.speed || 1.0;
       const offsetInClip = (state.playheadTime - active.clipStart) * speed;
       const sourceTime = clip.in_point + offsetInClip;
       const targetSrc = clip.preview_url || `/api/media/${fileId}`;
+
+      // Respect track mute & clip volume for active video player
+      dom.videoPlayer.muted = track.muted || false;
+      dom.videoPlayer.volume = Math.max(0, Math.min(1, clip.volume !== undefined ? clip.volume : 1.0));
 
       if (currentLoadedFileId !== fileId) {
         currentLoadedFileId = fileId;
@@ -690,6 +789,9 @@
         dom.videoPlayer.pause();
       }
     }
+
+    // Simultaneously sync all background audio (underneath video tracks and dedicated audio tracks)
+    syncBackgroundAudio(state.playheadTime, isPlaying, activeVideoClipId);
   }
 
   function startTimelinePlayback() {
@@ -734,6 +836,12 @@
     if (!dom.videoPlayer.paused) {
       dom.videoPlayer.pause();
     }
+    // Pause all background audio players immediately
+    backgroundAudioPlayers.forEach((player) => {
+      try {
+        player.pause();
+      } catch (_) {}
+    });
     dom.videoCenterBtn.classList.remove('opacity-0', 'pointer-events-none');
     dom.transportPlayIcon.setAttribute('data-lucide', 'play');
     refreshIcons();
@@ -1781,6 +1889,321 @@
     }
   }
 
+  // --- CapCut Dual-Wing Range Trimmer ---
+  function updateRangeOverlayUI() {
+    if (!dom.timelineRangeOverlay) return;
+    if (!state.rangeSelection || !state.rangeSelection.active) {
+      dom.timelineRangeOverlay.classList.add('hidden');
+      return;
+    }
+
+    const start = Math.min(state.rangeSelection.start, state.rangeSelection.end);
+    const end = Math.max(state.rangeSelection.start, state.rangeSelection.end);
+    const startPx = timeToPx(start);
+    const endPx = timeToPx(end);
+    const widthPx = Math.max(2, endPx - startPx);
+
+    dom.timelineRangeOverlay.classList.remove('hidden');
+    dom.timelineRangeOverlay.style.left = `${startPx}px`;
+    dom.timelineRangeOverlay.style.width = `${widthPx}px`;
+
+    const dur = end - start;
+    if (dom.rangeDurationBadge) {
+      dom.rangeDurationBadge.textContent = `${formatTime(start)} - ${formatTime(end)} (${dur.toFixed(2)}s)`;
+    }
+  }
+
+  function setRangeSelection(start, end) {
+    const clampedStart = Math.max(0, Math.min(state.duration, start));
+    const clampedEnd = Math.max(0, Math.min(state.duration, end));
+    state.rangeSelection.active = true;
+    state.rangeSelection.start = Math.min(clampedStart, clampedEnd);
+    state.rangeSelection.end = Math.max(clampedStart, clampedEnd);
+    updateRangeOverlayUI();
+  }
+
+  function clearRangeSelection() {
+    if (!state.rangeSelection) return;
+    state.rangeSelection.active = false;
+    state.rangeSelection.start = 0;
+    state.rangeSelection.end = 0;
+    updateRangeOverlayUI();
+  }
+
+  function trimToRangeSelection() {
+    if (!state.rangeSelection || !state.rangeSelection.active) {
+      showToast('Önce sol ve sağ kanatlarla bir aralık belirleyin.', 'info');
+      return;
+    }
+    const rStart = Math.min(state.rangeSelection.start, state.rangeSelection.end);
+    const rEnd = Math.max(state.rangeSelection.start, state.rangeSelection.end);
+    if (rEnd - rStart < 0.1) {
+      showToast('Kırpma aralığı en az 0.1 saniye olmalıdır.', 'warning');
+      return;
+    }
+
+    pushTimelineHistory();
+
+    let affectedCount = 0;
+    state.tracks.forEach((track) => {
+      if (track.locked) return;
+      const newClips = [];
+      (track.clips || []).forEach((c) => {
+        const cStart = c.timeline_start;
+        const cEnd = c.timeline_start + getClipDuration(c);
+        const speed = c.speed || 1.0;
+
+        if (cEnd > rStart && cStart < rEnd) {
+          const overlapStart = Math.max(cStart, rStart);
+          const overlapEnd = Math.min(cEnd, rEnd);
+          const offsetStart = (overlapStart - cStart) * speed;
+          const offsetEnd = (cEnd - overlapEnd) * speed;
+
+          const newIn = c.in_point + offsetStart;
+          const newOut = c.out_point - offsetEnd;
+
+          if (newOut - newIn > 0.05) {
+            newClips.push({
+              ...c,
+              id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              in_point: Math.max(0, newIn),
+              out_point: newOut,
+              timeline_start: Math.max(0, overlapStart - rStart),
+            });
+            affectedCount++;
+          }
+        }
+      });
+      track.clips = newClips;
+    });
+
+    const newDur = rEnd - rStart;
+    state.duration = Math.max(1, newDur);
+    state.playheadTime = 0;
+    clearRangeSelection();
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    syncPreviewToTimeline(0, false);
+    showToast(`Aralık dışı başarıyla kırpıldı ✂️ (${newDur.toFixed(2)}s tutuldu)`, 'success');
+  }
+
+  function deleteRangeSelection() {
+    if (!state.rangeSelection || !state.rangeSelection.active) {
+      showToast('Silinecek bir aralık seçilmedi.', 'info');
+      return;
+    }
+    const rStart = Math.min(state.rangeSelection.start, state.rangeSelection.end);
+    const rEnd = Math.max(state.rangeSelection.start, state.rangeSelection.end);
+    const cutDur = rEnd - rStart;
+    if (cutDur < 0.05) return;
+
+    pushTimelineHistory();
+
+    state.tracks.forEach((track) => {
+      if (track.locked) return;
+      const newClips = [];
+      (track.clips || []).forEach((c) => {
+        const cStart = c.timeline_start;
+        const cEnd = c.timeline_start + getClipDuration(c);
+        const speed = c.speed || 1.0;
+
+        if (cEnd <= rStart) {
+          newClips.push(c);
+        } else if (cStart >= rEnd) {
+          const shift = state.isRippleEnabled ? cutDur : 0;
+          newClips.push({
+            ...c,
+            timeline_start: Math.max(0, cStart - shift),
+          });
+        } else if (cStart < rStart && cEnd > rEnd) {
+          const leftOut = c.in_point + (rStart - cStart) * speed;
+          const rightIn = c.out_point - (cEnd - rEnd) * speed;
+          if (leftOut > c.in_point + 0.05) {
+            newClips.push({
+              ...c,
+              out_point: leftOut,
+            });
+          }
+          if (c.out_point > rightIn + 0.05) {
+            const shift = state.isRippleEnabled ? cutDur : 0;
+            newClips.push({
+              ...c,
+              id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              in_point: rightIn,
+              timeline_start: Math.max(0, state.isRippleEnabled ? rStart : rEnd),
+            });
+          }
+        } else if (cStart >= rStart && cEnd <= rEnd) {
+          // Inside cut: removed
+        } else if (cStart < rStart && cEnd <= rEnd) {
+          const newOut = c.in_point + (rStart - cStart) * speed;
+          if (newOut > c.in_point + 0.05) {
+            newClips.push({
+              ...c,
+              out_point: newOut,
+            });
+          }
+        } else if (cStart >= rStart && cEnd > rEnd) {
+          const newIn = c.out_point - (cEnd - rEnd) * speed;
+          if (c.out_point > newIn + 0.05) {
+            const shift = state.isRippleEnabled ? cutDur : 0;
+            newClips.push({
+              ...c,
+              in_point: newIn,
+              timeline_start: Math.max(0, state.isRippleEnabled ? rStart : cStart - shift),
+            });
+          }
+        }
+      });
+      track.clips = newClips;
+    });
+
+    clearRangeSelection();
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    syncPreviewToTimeline(Math.min(rStart, state.duration), false);
+    showToast(`Seçili aralık silindi 🗑️ (${cutDur.toFixed(2)}s çıkarıldı)`, 'success');
+  }
+
+  function splitAtRangeSelection() {
+    if (!state.rangeSelection || !state.rangeSelection.active) return;
+    const rStart = Math.min(state.rangeSelection.start, state.rangeSelection.end);
+    const rEnd = Math.max(state.rangeSelection.start, state.rangeSelection.end);
+
+    pushTimelineHistory();
+
+    [rStart, rEnd].forEach((splitTime) => {
+      state.tracks.forEach((track) => {
+        if (track.locked) return;
+        const clipIdx = (track.clips || []).findIndex((c) => {
+          const s = c.timeline_start;
+          const e = s + getClipDuration(c);
+          return splitTime > s + 0.05 && splitTime < e - 0.05;
+        });
+        if (clipIdx !== -1) {
+          const original = track.clips[clipIdx];
+          const speed = original.speed || 1.0;
+          const splitOffsetInClip = (splitTime - original.timeline_start) * speed;
+          const splitSourceTime = original.in_point + splitOffsetInClip;
+
+          const leftClip = {
+            ...original,
+            out_point: splitSourceTime,
+          };
+          const rightClip = {
+            ...original,
+            id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            in_point: splitSourceTime,
+            timeline_start: splitTime,
+          };
+          track.clips.splice(clipIdx, 1, leftClip, rightClip);
+        }
+      });
+    });
+
+    renderAllTracks();
+    updateTimelineDurationBadge();
+    showToast('Aralık sınırlarından klipler bölündü ⚡', 'success');
+  }
+
+  function initPlayheadDualWingTrimmer() {
+    const startDragWingLeft = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (state.isPlaying) stopTimelinePlayback();
+
+      const initialPlayhead = state.playheadTime;
+      if (!state.rangeSelection.active) {
+        state.rangeSelection.active = true;
+        state.rangeSelection.start = initialPlayhead;
+        state.rangeSelection.end = Math.min(state.duration, initialPlayhead + 2.0);
+      }
+
+      const onMove = (ev) => {
+        const canvasRect = dom.timelineCanvas ? dom.timelineCanvas.getBoundingClientRect() : { left: 0 };
+        const clientX = ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
+        const offsetX = clientX - canvasRect.left;
+        const newTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
+        state.rangeSelection.start = newTime;
+        updateRangeOverlayUI();
+        syncPreviewToTimeline(newTime, false);
+      };
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        if (state.rangeSelection.start > state.rangeSelection.end) {
+          const tmp = state.rangeSelection.start;
+          state.rangeSelection.start = state.rangeSelection.end;
+          state.rangeSelection.end = tmp;
+        }
+        updateRangeOverlayUI();
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    };
+
+    const startDragWingRight = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (state.isPlaying) stopTimelinePlayback();
+
+      const initialPlayhead = state.playheadTime;
+      if (!state.rangeSelection.active) {
+        state.rangeSelection.active = true;
+        state.rangeSelection.start = Math.max(0, initialPlayhead - 2.0);
+        state.rangeSelection.end = initialPlayhead;
+      }
+
+      const onMove = (ev) => {
+        const canvasRect = dom.timelineCanvas ? dom.timelineCanvas.getBoundingClientRect() : { left: 0 };
+        const clientX = ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
+        const offsetX = clientX - canvasRect.left;
+        const newTime = Math.max(0, Math.min(state.duration, pxToTime(offsetX)));
+        state.rangeSelection.end = newTime;
+        updateRangeOverlayUI();
+        syncPreviewToTimeline(newTime, false);
+      };
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        if (state.rangeSelection.start > state.rangeSelection.end) {
+          const tmp = state.rangeSelection.start;
+          state.rangeSelection.start = state.rangeSelection.end;
+          state.rangeSelection.end = tmp;
+        }
+        updateRangeOverlayUI();
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    };
+
+    if (dom.playheadWingLeft) {
+      dom.playheadWingLeft.addEventListener('pointerdown', startDragWingLeft);
+    }
+    if (dom.playheadWingRight) {
+      dom.playheadWingRight.addEventListener('pointerdown', startDragWingRight);
+    }
+    if (dom.rangeHandleIn) {
+      dom.rangeHandleIn.addEventListener('pointerdown', startDragWingLeft);
+    }
+    if (dom.rangeHandleOut) {
+      dom.rangeHandleOut.addEventListener('pointerdown', startDragWingRight);
+    }
+
+    if (dom.btnRangeTrim) dom.btnRangeTrim.addEventListener('click', trimToRangeSelection);
+    if (dom.btnRangeDelete) dom.btnRangeDelete.addEventListener('click', deleteRangeSelection);
+    if (dom.btnRangeSplit) dom.btnRangeSplit.addEventListener('click', splitAtRangeSelection);
+    if (dom.btnRangeClear) dom.btnRangeClear.addEventListener('click', clearRangeSelection);
+  }
+
   // --- Zoom Controls ---
   function initZoomControls() {
     const applyZoom = (newZoom) => {
@@ -2180,6 +2603,7 @@
 
     initZoomControls();
     initTimelineRulerScrubber();
+    initPlayheadDualWingTrimmer();
     initClipInspectorListeners();
     initTimelineContextMenu();
     initTimelineFileDrop();
@@ -2200,6 +2624,43 @@
           dom.shortcutsModal.classList.add('hidden');
           return;
         }
+        if (state.rangeSelection && state.rangeSelection.active) {
+          clearRangeSelection();
+          return;
+        }
+      }
+
+      // I: Set In-Point at playhead
+      if (e.code === 'KeyI' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const cur = state.playheadTime;
+        const end = (state.rangeSelection && state.rangeSelection.active) ? state.rangeSelection.end : Math.min(state.duration, cur + 2.0);
+        setRangeSelection(cur, end);
+        showToast(`Aralık Başlangıcı (In) [ ${formatTime(cur)} ] 🚩`, 'info');
+        return;
+      }
+
+      // O: Set Out-Point at playhead
+      if (e.code === 'KeyO' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const cur = state.playheadTime;
+        const start = (state.rangeSelection && state.rangeSelection.active) ? state.rangeSelection.start : Math.max(0, cur - 2.0);
+        setRangeSelection(start, cur);
+        showToast(`Aralık Bitişi (Out) [ ${formatTime(cur)} ] 🏁`, 'info');
+        return;
+      }
+
+      // X: Mark Clip Range (Set In/Out to cover selected clip)
+      if (e.code === 'KeyX' && !e.ctrlKey && !e.metaKey) {
+        const sel = getSelectedClip();
+        if (sel) {
+          e.preventDefault();
+          const s = sel.clip.timeline_start;
+          const end = s + getClipDuration(sel.clip);
+          setRangeSelection(s, end);
+          showToast(`Klip aralığı seçildi [ ${formatTime(s)} - ${formatTime(end)} ] 🎯`, 'info');
+          return;
+        }
       }
 
       // Space: Play / Pause
@@ -2216,13 +2677,17 @@
         return;
       }
 
-      // Delete or Backspace: Delete selected clip
+      // Delete or Backspace: Delete selected clip or range selection
       if (e.code === 'Delete' || e.code === 'Backspace') {
         if (state.selectedClipId) {
           e.preventDefault();
           deleteSelectedClip();
+          return;
+        } else if (state.rangeSelection && state.rangeSelection.active) {
+          e.preventDefault();
+          deleteRangeSelection();
+          return;
         }
-        return;
       }
 
       // Guard F5 / Ctrl+R to prevent accidental project loss

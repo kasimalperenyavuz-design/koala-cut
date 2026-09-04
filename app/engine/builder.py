@@ -423,6 +423,10 @@ class FFmpegCommandBuilder:
                 "Re-encoding is required for seamless splicing."
             )
 
+        # Check for multiple tracks with media clips (e.g. V1 & V2, or V1 & A1)
+        tracks_with_clips = [t for t in (config.timeline_tracks or []) if t.clips]
+        is_multi_track = len(tracks_with_clips) > 1 or any(t.type == "audio" for t in tracks_with_clips)
+
         if has_timeline:
             input_files: list[str] = [input_file]
             file_to_idx: dict[str, int] = {}
@@ -447,7 +451,7 @@ class FFmpegCommandBuilder:
                 complex_filters.append(v_trim)
                 v_inputs.append(f"[{v_tag}]")
 
-                if not config.remove_audio and not track_muted:
+                if not is_multi_track and not config.remove_audio and not track_muted:
                     a_tag = f"a{i}"
                     atrim_filter = f"[{in_idx}:a]atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f},asetpts=PTS-STARTPTS"
                     if speed != 1.0:
@@ -458,10 +462,34 @@ class FFmpegCommandBuilder:
                     complex_filters.append(atrim_filter)
                     a_inputs.append(f"[{a_tag}]")
 
-            has_audio = (not config.remove_audio) and (len(a_inputs) == n_clips)
+            # Multi-Track Audio Mixing: collect all unmuted clips across all tracks (video & audio)
+            if is_multi_track and not config.remove_audio:
+                all_audio_clips: list[tuple[TimelineClip, int]] = []
+                for t in tracks_with_clips:
+                    if not t.muted:
+                        for c in t.clips:
+                            in_idx = file_to_idx.get(c.file_id, 0) if c.file_id else 0
+                            all_audio_clips.append((c, in_idx))
+
+                for j, (aclip, in_idx) in enumerate(all_audio_clips):
+                    a_tag = f"aud{j}"
+                    speed = aclip.speed if aclip.speed > 0 else 1.0
+                    delay_ms = max(0, int(round(aclip.timeline_start * 1000)))
+                    afilters = [
+                        f"atrim=start={aclip.in_point:.3f}:end={aclip.out_point:.3f}",
+                        "asetpts=PTS-STARTPTS",
+                    ]
+                    if speed != 1.0:
+                        afilters.append(f"atempo={speed:.4f}")
+                    if aclip.volume != 1.0:
+                        afilters.append(f"volume={aclip.volume:.2f}")
+                    afilters.append(f"adelay={delay_ms}|{delay_ms}")
+                    filter_chain = f"[{in_idx}:a]" + ",".join(afilters) + f"[{a_tag}]"
+                    complex_filters.append(filter_chain)
+                    a_inputs.append(f"[{a_tag}]")
 
             if n_clips > 1:
-                if has_audio:
+                if not is_multi_track and not config.remove_audio and len(a_inputs) == n_clips:
                     concat_parts = "".join(f"{v_inputs[i]}{a_inputs[i]}" for i in range(n_clips))
                     complex_filters.append(f"{concat_parts}concat=n={n_clips}:v=1:a=1[v_concat][a_concat]")
                     current_v = "[v_concat]"
@@ -473,7 +501,18 @@ class FFmpegCommandBuilder:
                     current_a = None
             else:
                 current_v = v_inputs[0]
-                current_a = a_inputs[0] if has_audio else None
+                current_a = a_inputs[0] if (not is_multi_track and len(a_inputs) == 1) else None
+
+            # If multi-track audio was gathered, mix all audio inputs together using amix
+            if is_multi_track and not config.remove_audio and a_inputs:
+                if len(a_inputs) == 1:
+                    current_a = a_inputs[0]
+                else:
+                    all_a_str = "".join(a_inputs)
+                    complex_filters.append(f"{all_a_str}amix=inputs={len(a_inputs)}:dropout_transition=0:normalize=0[a_mixed]")
+                    current_a = "[a_mixed]"
+            elif config.remove_audio:
+                current_a = None
 
             # Apply additional transformations (aspect ratio, scale, crop, pad, fps)
             vf_list = self.build_video_filters(config)

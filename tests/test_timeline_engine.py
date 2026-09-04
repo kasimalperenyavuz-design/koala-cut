@@ -142,3 +142,25 @@ def test_api_job_lifecycle_with_timeline_tracks(sample_video: str):
         assert dl_res.status_code == 200
         assert len(dl_res.content) > 0
 
+
+def test_timeline_multi_track_audio_mixing():
+    builder = FFmpegCommandBuilder()
+    track_v1 = TimelineTrack(
+        id="v1",
+        type="video",
+        clips=[TimelineClip(id="c1", in_point=0.0, out_point=5.0, timeline_start=0.0)],
+    )
+    track_v2 = TimelineTrack(
+        id="v2",
+        type="video",
+        clips=[TimelineClip(id="c2", in_point=1.0, out_point=4.0, timeline_start=2.0)],
+    )
+    config = VideoFilterConfig(timeline_tracks=[track_v1, track_v2], mode="crf", crf=23)
+    cmd = builder.build("input.mp4", "output.mp4", config, source_duration=10.0)
+    cmd_str = " ".join(cmd)
+
+    assert "amix=inputs=2" in cmd_str
+    assert "adelay=0|0" in cmd_str
+    assert "adelay=2000|2000" in cmd_str
+
+
