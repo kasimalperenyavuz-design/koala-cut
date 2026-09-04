@@ -597,19 +597,19 @@ async def generate_subtitles_endpoint(payload: SubtitleGenerateRequest):
 @app.get("/api/ai/subtitles/{sub_id}/download")
 async def download_subtitles_endpoint(sub_id: str, format: str = "srt"):
     """Download generated subtitle file (.srt or .vtt)."""
-    sub_dir = os.path.join(os.getcwd(), "outputs", "subtitles")
+    sub_dir = OUTPUT_DIR / "subtitles"
     file_ext = "vtt" if format.lower() == "vtt" else "srt"
-    sub_file = os.path.join(sub_dir, f"sub_{sub_id}.{file_ext}")
+    sub_file = sub_dir / f"sub_{sub_id}.{file_ext}"
 
-    if not os.path.exists(sub_file):
-        srt_file = os.path.join(sub_dir, f"sub_{sub_id}.srt")
-        if not os.path.exists(srt_file):
+    if not sub_file.exists():
+        srt_file = sub_dir / f"sub_{sub_id}.srt"
+        if not srt_file.exists():
             raise HTTPException(status_code=404, detail="Subtitle file not found.")
         sub_file = srt_file
         file_ext = "srt"
 
     return FileResponse(
-        sub_file,
+        str(sub_file),
         media_type="text/plain",
         filename=f"subtitles_{sub_id}.{file_ext}",
     )

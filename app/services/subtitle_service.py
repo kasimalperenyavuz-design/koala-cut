@@ -71,8 +71,9 @@ class SubtitleService:
         if model_size not in cls._models:
             from faster_whisper import WhisperModel
 
-            # Store models in project cache or local app data
-            model_dir = os.path.join(os.getcwd(), "models", "whisper", model_size)
+            from app.services.storage import get_storage_dirs
+            _, out_dir = get_storage_dirs()
+            model_dir = os.fspath(out_dir.parent / "models" / "whisper" / model_size)
             os.makedirs(model_dir, exist_ok=True)
 
             cls._models[model_size] = WhisperModel(
@@ -118,7 +119,9 @@ class SubtitleService:
     ) -> SubtitleResult:
         """Transcribe video audio and generate structured SRT and VTT subtitles."""
         sub_id = str(uuid.uuid4())[:12]
-        temp_dir = os.path.join(os.getcwd(), "outputs", "subtitles")
+        from app.services.storage import get_storage_dirs
+        _, out_dir = get_storage_dirs()
+        temp_dir = os.fspath(out_dir / "subtitles")
         os.makedirs(temp_dir, exist_ok=True)
         temp_wav = os.path.join(temp_dir, f"temp_{sub_id}.wav")
 

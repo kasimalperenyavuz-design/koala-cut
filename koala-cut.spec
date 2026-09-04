@@ -1,10 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_all
 
 block_cipher = None
 
-hidden_imports = [
+# Collect faster-whisper and its core AI dependencies
+fw_datas, fw_binaries, fw_hidden = collect_all("faster_whisper")
+ct_datas, ct_binaries, ct_hidden = collect_all("ctranslate2")
+tok_datas, tok_binaries, tok_hidden = collect_all("tokenizers")
+hf_datas, hf_binaries, hf_hidden = collect_all("huggingface_hub")
+ort_datas, ort_binaries, ort_hidden = collect_all("onnxruntime")
+
+base_hidden_imports = [
     "uvicorn",
     "uvicorn.logging",
     "uvicorn.loops",
@@ -25,17 +32,22 @@ hidden_imports = [
     "starlette",
     "fastapi",
     "aiofiles",
+    "numpy",
 ]
+
+hidden_imports = list(set(base_hidden_imports + fw_hidden + ct_hidden + tok_hidden + hf_hidden + ort_hidden))
 
 datas = [
     ("app/static", "app/static"),
     ("app/engine/models", "app/engine/models"),
-]
+] + fw_datas + ct_datas + tok_datas + hf_datas + ort_datas
+
+binaries = fw_binaries + ct_binaries + tok_binaries + hf_binaries + ort_binaries
 
 a = Analysis(
     ["run.py"],
     pathex=[],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -43,10 +55,9 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         "tkinter", "matplotlib", "torch", "torchvision", "torchaudio",
-        "scipy", "scikit-learn", "numpy", "transformers", "spacy",
-        "PIL", "cv2", "librosa", "timm", "faster_whisper", "ctranslate2",
-        "tokenizers", "huggingface_hub", "nltk", "numba", "tensorboard",
-        "tensorflow", "keras"
+        "scipy", "scikit-learn", "transformers", "spacy",
+        "PIL", "cv2", "librosa", "timm", "nltk", "tensorboard",
+        "tensorflow", "keras", "jupyter", "IPython", "pandas", "sqlalchemy"
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
