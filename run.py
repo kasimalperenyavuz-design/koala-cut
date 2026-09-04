@@ -29,6 +29,7 @@ def find_available_port(preferred_port: int = 8000, max_attempts: int = 20) -> i
     for port in range(preferred_port, preferred_port + max_attempts):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.bind(("127.0.0.1", port))
                 return port
         except OSError:
@@ -145,8 +146,9 @@ def main() -> None:
 
         # In frozen mode, reload must be False and app is passed as an object
         reload_mode = False if getattr(sys, "frozen", False) else args.reload
+        app_target = "app.main:app" if (reload_mode and not getattr(sys, "frozen", False)) else app
         uvicorn.run(
-            app,
+            app_target,
             host=args.host,
             port=actual_port,
             reload=reload_mode,
