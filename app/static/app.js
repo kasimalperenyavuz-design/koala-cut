@@ -496,80 +496,83 @@
   // Editor Initialization with Probed Media
   // ---------------------------------------------------------------------------
   function loadMediaIntoEditor(payload) {
-    state.fileId = payload.file_id;
-    state.filename = payload.filename || 'video.mp4';
-    state.metadata = payload.metadata;
-    state.duration = payload.metadata.duration || 0;
-    state.originalSize = payload.metadata.size_bytes || 0;
+    try {
+      state.fileId = payload.file_id;
+      state.filename = payload.filename || 'video.mp4';
+      state.metadata = payload.metadata;
+      state.duration = payload.metadata ? (payload.metadata.duration || 0) : 0;
+      state.originalSize = payload.metadata ? (payload.metadata.size_bytes || 0) : 0;
 
-    // Reset trim to full range
-    state.startTime = 0;
-    state.endTime = state.duration;
+      // Reset trim to full range
+      state.startTime = 0;
+      state.endTime = state.duration;
 
-    // Display metadata bar
-    dom.metaFilename.textContent = state.filename;
-    dom.metaFilename.title = state.filename;
-    const vMeta = payload.metadata.video;
-    if (vMeta) {
-      dom.metaCodec.textContent = (vMeta.codec || 'H.264').toUpperCase();
-      dom.metaRes.textContent = `${vMeta.width}x${vMeta.height}`;
-      dom.metaFps.textContent = `${Math.round(vMeta.fps)} fps`;
-    } else {
-      dom.metaCodec.textContent = 'N/A';
-      dom.metaRes.textContent = 'Unknown';
-      dom.metaFps.textContent = 'Unknown';
-    }
-    dom.metaDuration.textContent = formatTime(state.duration);
-    dom.metaSize.textContent = formatBytes(state.originalSize);
-
-    // Setup Video Player Stream with automatic browser-compatible preview
-    const streamUrl = payload.preview_url || `/api/preview/${state.fileId}`;
-    dom.videoPlayer.src = streamUrl;
-    dom.videoPlayer.load();
-
-    // Automatic fallback if browser hardware decoder struggles with format
-    dom.videoPlayer.onerror = () => {
-      console.warn('Video element reported playback error, falling back to guaranteed H.264 preview proxy...');
-      const fallbackUrl = `/api/preview/${state.fileId}`;
-      if (!dom.videoPlayer.src.includes(fallbackUrl)) {
-        dom.videoPlayer.src = fallbackUrl;
-        dom.videoPlayer.load();
+      // Display metadata bar
+      if (dom.metaFilename) {
+        dom.metaFilename.textContent = state.filename;
+        dom.metaFilename.title = state.filename;
       }
-    };
+      const vMeta = payload.metadata && payload.metadata.video;
+      if (vMeta) {
+        if (dom.metaCodec) dom.metaCodec.textContent = (vMeta.codec || 'H.264').toUpperCase();
+        if (dom.metaRes) dom.metaRes.textContent = `${vMeta.width}x${vMeta.height}`;
+        if (dom.metaFps) dom.metaFps.textContent = `${Math.round(vMeta.fps)} fps`;
+      } else {
+        if (dom.metaCodec) dom.metaCodec.textContent = 'N/A';
+        if (dom.metaRes) dom.metaRes.textContent = 'Bilinmiyor';
+        if (dom.metaFps) dom.metaFps.textContent = 'Bilinmiyor';
+      }
+      if (dom.metaDuration) dom.metaDuration.textContent = formatTime(state.duration);
+      if (dom.metaSize) dom.metaSize.textContent = formatBytes(state.originalSize);
 
-    // Default target MB preset based on original size
-    const origMb = state.originalSize / (1024 * 1024);
-    if (origMb > 10) {
-      state.targetSizeMb = Math.min(25, Math.max(2, Math.round(origMb * 0.4 * 10) / 10));
-    } else {
-      state.targetSizeMb = Math.min(8, Math.max(1, Math.round(origMb * 0.6 * 10) / 10));
-    }
-    dom.inputTargetMb.value = state.targetSizeMb;
-    dom.sliderTargetMb.value = state.targetSizeMb;
-    dom.sliderTargetMb.max = Math.max(50, Math.ceil(origMb * 1.2));
+      // Setup Video Player Stream with automatic browser-compatible preview
+      const streamUrl = payload.preview_url || `/api/preview/${state.fileId}`;
+      dom.videoPlayer.src = streamUrl;
+      dom.videoPlayer.load();
 
-    // Initialize CapCut Multi-Track Timeline
-    clipCounter = 1;
-    const v1 = getV1Track();
-    if (v1) {
-      v1.clips = [{
-        id: 'clip-1',
-        in_point: 0.0,
-        out_point: Math.round(state.duration * 100) / 100,
-        timeline_start: 0.0,
-        speed: 1.0,
-        volume: 1.0,
-      }];
+      // Automatic fallback if browser hardware decoder struggles with format
+      dom.videoPlayer.onerror = () => {
+        console.warn('Video element reported playback error, falling back to guaranteed H.264 preview proxy...');
+        const fallbackUrl = `/api/preview/${state.fileId}`;
+        if (!dom.videoPlayer.src.includes(fallbackUrl)) {
+          dom.videoPlayer.src = fallbackUrl;
+          dom.videoPlayer.load();
+        }
+      };
+
+      // Default target MB preset based on original size
+      const origMb = state.originalSize / (1024 * 1024);
+      if (origMb > 10) {
+        state.targetSizeMb = Math.min(25, Math.max(2, Math.round(origMb * 0.4 * 10) / 10));
+      } else {
+        state.targetSizeMb = Math.min(8, Math.max(1, Math.round(origMb * 0.6 * 10) / 10));
+      }
+      if (dom.inputTargetMb) dom.inputTargetMb.value = state.targetSizeMb;
+      if (dom.sliderTargetMb) {
+        dom.sliderTargetMb.value = state.targetSizeMb;
+        dom.sliderTargetMb.max = Math.max(50, Math.ceil(origMb * 1.2));
+      }
+
+      // Initialize CapCut Multi-Track Timeline
+      clipCounter = 1;
+      const v1 = getV1Track();
+      if (v1) {
+        v1.clips = [createClip('clip-1', 0.0, state.duration, 0.0, 1.0, 1.0)];
+      }
+      state.selectedClipId = null;
+      state.timelineHistory = [];
+      if (dom.btnDeleteClip) {
+        dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
+      }
+      renderAllTracks();
+      updateTimelineDurationBadge();
+      switchView('editor');
+      showToast(`Video yüklendi: ${state.filename}`, 'success');
+    } catch (err) {
+      console.error('Error in loadMediaIntoEditor:', err);
+      showToast('Video yüklenirken hata oluştu: ' + err.message, 'error');
+      switchView('editor');
     }
-    state.selectedClipId = null;
-    state.timelineHistory = [];
-    if (dom.btnDeleteClip) {
-      dom.btnDeleteClip.classList.add('opacity-50', 'pointer-events-none');
-    }
-    renderAllTracks();
-    updateTimelineDurationBadge();
-    switchView('editor');
-    showToast(`Video yüklendi: ${state.filename}`, 'success');
   }
 
   // ---------------------------------------------------------------------------
@@ -667,12 +670,34 @@
   // ===========================================================================
   let clipCounter = 1;
 
+  function getClipDuration(clip) {
+    if (!clip) return 0.1;
+    const spd = clip.speed && clip.speed > 0 ? clip.speed : 1.0;
+    const inPt = typeof clip.in_point === 'number' ? clip.in_point : 0;
+    const outPt = typeof clip.out_point === 'number' ? clip.out_point : inPt + 0.1;
+    return Math.max(0.1, (outPt - inPt) / spd);
+  }
+
+  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0) {
+    return {
+      id,
+      in_point: Math.round(in_point * 1000) / 1000,
+      out_point: Math.round(out_point * 1000) / 1000,
+      timeline_start: Math.round(timeline_start * 1000) / 1000,
+      speed: speed || 1.0,
+      volume: volume !== undefined ? volume : 1.0,
+      get duration() {
+        return getClipDuration(this);
+      },
+    };
+  }
+
   function timeToPx(seconds) {
-    return Math.max(0, seconds * state.timelineZoom);
+    return Math.max(0, (seconds || 0) * state.timelineZoom);
   }
 
   function pxToTime(px) {
-    return Math.max(0, px / state.timelineZoom);
+    return Math.max(0, (px || 0) / state.timelineZoom);
   }
 
   function getV1Track() {
@@ -724,7 +749,7 @@
     if (v1) {
       v1.clips.forEach((c) => {
         snapPoints.push(c.timeline_start);
-        snapPoints.push(c.timeline_start + c.duration);
+        snapPoints.push(c.timeline_start + getClipDuration(c));
       });
     }
 
@@ -743,7 +768,7 @@
   function calculateNetDuration() {
     const v1 = getV1Track();
     if (!v1 || v1.clips.length === 0) return state.duration;
-    return v1.clips.reduce((acc, c) => acc + c.duration, 0);
+    return v1.clips.reduce((acc, c) => acc + getClipDuration(c), 0);
   }
 
   function updateTimelineDurationBadge() {
@@ -829,14 +854,15 @@
     if (!v1) return;
 
     v1.clips.forEach((clip, index) => {
+      const clipDuration = getClipDuration(clip);
       const clipEl = document.createElement('div');
       const isSelected = clip.id === state.selectedClipId;
       clipEl.className = `timeline-clip-card ${isSelected ? 'selected' : ''}`;
       clipEl.dataset.clipId = clip.id;
       clipEl.style.left = `${timeToPx(clip.timeline_start)}px`;
-      clipEl.style.width = `${Math.max(28, timeToPx(clip.duration))}px`;
+      clipEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
 
-      const durStr = clip.duration.toFixed(1);
+      const durStr = clipDuration.toFixed(1);
       const speedBadge = clip.speed !== 1.0 ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${clip.speed}x</span>` : '';
 
       clipEl.innerHTML = `
@@ -878,11 +904,12 @@
     if (!v1) return;
 
     v1.clips.forEach((clip, index) => {
+      const clipDuration = getClipDuration(clip);
       const audioEl = document.createElement('div');
       const isSelected = clip.id === state.selectedClipId;
       audioEl.className = `timeline-audio-clip-card ${isSelected ? 'selected' : ''}`;
       audioEl.style.left = `${timeToPx(clip.timeline_start)}px`;
-      audioEl.style.width = `${Math.max(28, timeToPx(clip.duration))}px`;
+      audioEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
 
       const volStr = clip.volume !== 1.0 ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono">%${Math.round(clip.volume * 100)}</span>` : '';
 
@@ -1011,7 +1038,7 @@
     let cur = 0;
     v1.clips.forEach((c) => {
       c.timeline_start = Math.round(cur * 100) / 100;
-      cur += c.duration;
+      cur += getClipDuration(c);
     });
   }
 
@@ -1036,17 +1063,22 @@
     const curRounded = Math.round(cur * 100) / 100;
     const splitOffset = (curRounded - targetClip.in_point) / (targetClip.speed || 1.0);
 
-    const clipA = {
-      ...targetClip,
-      id: `clip-${++clipCounter}`,
-      out_point: curRounded,
-    };
-    const clipB = {
-      ...targetClip,
-      id: `clip-${++clipCounter}`,
-      in_point: curRounded,
-      timeline_start: Math.round((targetClip.timeline_start + splitOffset) * 100) / 100,
-    };
+    const clipA = createClip(
+      `clip-${++clipCounter}`,
+      targetClip.in_point,
+      curRounded,
+      targetClip.timeline_start,
+      targetClip.speed,
+      targetClip.volume
+    );
+    const clipB = createClip(
+      `clip-${++clipCounter}`,
+      curRounded,
+      targetClip.out_point,
+      Math.round((targetClip.timeline_start + splitOffset) * 100) / 100,
+      targetClip.speed,
+      targetClip.volume
+    );
 
     v1.clips.splice(targetIdx, 1, clipA, clipB);
     if (state.isRippleEnabled) rippleAlignClips();
@@ -1102,14 +1134,7 @@
     clipCounter = 1;
     const v1 = getV1Track();
     if (v1) {
-      v1.clips = [{
-        id: `clip-${clipCounter}`,
-        in_point: 0.0,
-        out_point: Math.round(state.duration * 100) / 100,
-        timeline_start: 0.0,
-        speed: 1.0,
-        volume: 1.0,
-      }];
+      v1.clips = [createClip(`clip-${clipCounter}`, 0.0, state.duration, 0.0, 1.0, 1.0)];
     }
     state.selectedClipId = null;
     if (dom.btnDeleteClip) {
@@ -1147,7 +1172,7 @@
     const clipIdx = v1 ? v1.clips.findIndex((c) => c.id === clip.id) + 1 : 1;
     if (dom.inspectorClipTitle) dom.inspectorClipTitle.textContent = `Klip ${clipIdx}`;
     if (dom.inspectorClipTiming) {
-      dom.inspectorClipTiming.textContent = `${formatTime(clip.in_point)} - ${formatTime(clip.out_point)} • ${clip.duration.toFixed(1)}s`;
+      dom.inspectorClipTiming.textContent = `${formatTime(clip.in_point)} - ${formatTime(clip.out_point)} • ${getClipDuration(clip).toFixed(1)}s`;
     }
     if (dom.timelineSelectionHint) {
       dom.timelineSelectionHint.textContent = `Seçili: Klip ${clipIdx} (${formatTime(clip.in_point)} - ${formatTime(clip.out_point)})`;
