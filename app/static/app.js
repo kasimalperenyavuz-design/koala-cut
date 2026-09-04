@@ -693,7 +693,7 @@
     return Math.max(0.1, (outPt - inPt) / spd);
   }
 
-  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0) {
+  function createClip(id, in_point, out_point, timeline_start = 0.0, speed = 1.0, volume = 1.0, file_id = null, filename = null) {
     return {
       id,
       in_point: Math.round(in_point * 1000) / 1000,
@@ -701,6 +701,8 @@
       timeline_start: Math.round(timeline_start * 1000) / 1000,
       speed: speed || 1.0,
       volume: volume !== undefined ? volume : 1.0,
+      file_id: file_id || state.fileId,
+      filename: filename || (state.filename ? state.filename : null),
       get duration() {
         return getClipDuration(this);
       },
@@ -878,8 +880,10 @@
       const isBaseTrack = track.id === 'v1' || track.id === 'a1';
 
       const headerEl = document.createElement('div');
-      headerEl.className = `h-11 px-3 border-b border-white/5 flex items-center justify-between transition-colors ${
-        isSelected ? 'bg-indigo-950/40 border-l-2 border-l-indigo-500' : 'bg-slate-900/60'
+      headerEl.className = `h-[46px] px-3 border-b border-slate-800/80 flex items-center justify-between transition-colors ${
+        isSelected
+          ? (isVideo ? 'bg-indigo-950/70 border-l-4 border-l-indigo-500' : 'bg-cyan-950/70 border-l-4 border-l-cyan-500')
+          : 'bg-slate-900/90'
       }`;
       headerEl.dataset.trackId = track.id;
 
@@ -975,7 +979,7 @@
     state.tracks.forEach((track) => {
       const isVideo = track.type === 'video';
       const laneEl = document.createElement('div');
-      laneEl.className = `relative w-full h-11 border-b border-white/5 track-lane-grid-bg overflow-visible flex items-center ${
+      laneEl.className = `track-lane-row ${
         track.locked ? 'opacity-60 pointer-events-none' : ''
       }`;
       laneEl.dataset.trackId = track.id;
@@ -997,24 +1001,25 @@
         clipEl.style.width = `${Math.max(28, timeToPx(clipDuration))}px`;
 
         const durStr = clipDuration.toFixed(1);
+        const clipTitle = clip.filename ? clip.filename : `${isVideo ? 'Klip' : 'Ses'} ${index + 1}`;
         const speedBadge =
           clip.speed && clip.speed !== 1.0
-            ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${clip.speed}x</span>`
+            ? `<span class="text-[9px] px-1 py-0.2 rounded bg-black/40 text-amber-300 border border-amber-400/40 font-mono font-bold">${clip.speed}x</span>`
             : '';
         const volBadge =
           !isVideo && clip.volume !== undefined && clip.volume !== 1.0
-            ? `<span class="text-[9px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono">%${Math.round(clip.volume * 100)}</span>`
+            ? `<span class="text-[9px] px-1 py-0.2 rounded bg-black/40 text-cyan-300 border border-cyan-400/40 font-mono font-bold">%${Math.round(clip.volume * 100)}</span>`
             : '';
 
         if (isVideo) {
           clipEl.innerHTML = `
             <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Klibin başını kırp"></div>
-            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none">
-              <i data-lucide="film" class="w-3.5 h-3.5 text-indigo-300 flex-shrink-0"></i>
-              <span class="text-xs font-semibold text-white truncate">Klip ${index + 1}</span>
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none select-none">
+              <i data-lucide="film" class="w-3.5 h-3.5 text-indigo-200 flex-shrink-0 drop-shadow"></i>
+              <span class="text-xs font-bold text-white truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">${clipTitle}</span>
               ${speedBadge}
             </div>
-            <div class="flex items-center gap-1 text-[10px] font-mono text-indigo-200 pointer-events-none flex-shrink-0">
+            <div class="flex items-center gap-1 text-[10px] font-mono font-bold text-indigo-100 bg-black/40 px-1.5 py-0.5 rounded border border-white/20 pointer-events-none flex-shrink-0 mr-1">
               <span>${durStr}s</span>
             </div>
             <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Klibin sonunu kırp"></div>
@@ -1022,12 +1027,12 @@
         } else {
           clipEl.innerHTML = `
             <div class="clip-trim-handle clip-trim-handle-left" data-action="trim-left" title="Sesin başını kırp"></div>
-            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none">
-              <i data-lucide="volume-2" class="w-3 h-3 text-cyan-400 flex-shrink-0"></i>
-              <span class="text-[11px] font-medium text-cyan-200 truncate">Ses ${index + 1}</span>
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 px-1 pointer-events-none select-none">
+              <i data-lucide="volume-2" class="w-3.5 h-3.5 text-cyan-200 flex-shrink-0 drop-shadow"></i>
+              <span class="text-xs font-bold text-white truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">${clipTitle}</span>
               ${volBadge}
             </div>
-            <div class="flex items-center gap-1 text-[10px] font-mono text-cyan-200 pointer-events-none flex-shrink-0">
+            <div class="flex items-center gap-1 text-[10px] font-mono font-bold text-cyan-100 bg-black/40 px-1.5 py-0.5 rounded border border-white/20 pointer-events-none flex-shrink-0 mr-1">
               <span>${durStr}s</span>
             </div>
             <div class="clip-trim-handle clip-trim-handle-right" data-action="trim-right" title="Sesin sonunu kırp"></div>
@@ -1121,16 +1126,42 @@
     window.addEventListener('pointerup', onPointerUp);
   }
 
-  // --- Clip Position Dragging on Track ---
+  // --- Clip Position Dragging on Track (Horizontal + Vertical Cross-Track) ---
   function initClipDragging(clip, track, downEvent) {
     downEvent.preventDefault();
     const startX = downEvent.clientX;
+    const startY = downEvent.clientY;
     const origTimelineStart = clip.timeline_start;
     let hasMoved = false;
+    let currentTargetTrack = track;
+
+    function getLaneUnderPointer(clientY) {
+      if (!dom.timelineLanesArea) return null;
+      const lanes = dom.timelineLanesArea.querySelectorAll('.track-lane-row');
+      for (const lane of lanes) {
+        const r = lane.getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) {
+          const tid = lane.dataset.trackId;
+          const trk = state.tracks.find((t) => t.id === tid);
+          if (trk && trk.type === track.type && !trk.locked) {
+            return { laneEl: lane, track: trk };
+          }
+        }
+      }
+      return null;
+    }
+
+    function clearLaneHighlights() {
+      if (!dom.timelineLanesArea) return;
+      dom.timelineLanesArea.querySelectorAll('.track-lane-row').forEach((l) => {
+        l.classList.remove('lane-drop-hover');
+      });
+    }
 
     const onPointerMove = (e) => {
       const dx = e.clientX - startX;
-      if (Math.abs(dx) > 3 && !hasMoved) {
+      const dy = e.clientY - startY;
+      if ((Math.abs(dx) > 3 || Math.abs(dy) > 3) && !hasMoved) {
         hasMoved = true;
         pushTimelineHistory();
       }
@@ -1146,22 +1177,54 @@
         dom.timelineSnapGuide.style.left = `${timeToPx(clip.timeline_start)}px`;
       }
 
+      // Check vertical track lane under cursor
+      const hit = getLaneUnderPointer(e.clientY);
+      clearLaneHighlights();
+      if (hit) {
+        currentTargetTrack = hit.track;
+        if (hit.track.id !== track.id) {
+          hit.laneEl.classList.add('lane-drop-hover');
+        }
+      } else {
+        currentTargetTrack = track;
+      }
+
       renderTrackLanes();
+
+      // Find dragging element and add is-dragging style
+      const draggingEl = dom.timelineLanesArea.querySelector(`[data-clip-id="${clip.id}"]`);
+      if (draggingEl) {
+        draggingEl.classList.add('is-dragging');
+      }
     };
 
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      clearLaneHighlights();
       if (dom.timelineSnapGuide) {
         dom.timelineSnapGuide.classList.add('hidden');
       }
+
       if (hasMoved) {
-        track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
-        if (state.isRippleEnabled) {
-          rippleAlignClips(track);
+        if (currentTargetTrack && currentTargetTrack.id !== track.id) {
+          // Move clip across tracks!
+          track.clips = track.clips.filter((c) => c.id !== clip.id);
+          currentTargetTrack.clips.push(clip);
+          currentTargetTrack.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+          state.selectedTrackId = currentTargetTrack.id;
+          state.selectedClipId = clip.id;
+          showToast(`Klip ${currentTargetTrack.name} kanalına taşındı.`, 'info');
+        } else {
+          track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+          if (state.isRippleEnabled) {
+            rippleAlignClips(track);
+          }
         }
+
         renderAllTracks();
         updateTimelineDurationBadge();
+        updateClipInspector();
       }
     };
 
@@ -1288,7 +1351,9 @@
       clip.out_point,
       clip.timeline_start + getClipDuration(clip) + 0.2,
       clip.speed,
-      clip.volume
+      clip.volume,
+      clip.file_id,
+      clip.filename
     );
     track.clips.push(newClip);
     track.clips.sort((a, b) => a.timeline_start - b.timeline_start);
@@ -1299,9 +1364,17 @@
   }
 
   function moveClipToTrack(clipId, targetTrackId) {
-    const sel = getSelectedClip();
-    if (!sel) return;
-    const { clip, track: sourceTrack } = sel;
+    let sourceTrack = null;
+    let clip = null;
+    for (const t of state.tracks) {
+      const c = (t.clips || []).find((x) => x.id === clipId);
+      if (c) {
+        sourceTrack = t;
+        clip = c;
+        break;
+      }
+    }
+    if (!clip || !sourceTrack) return;
     if (sourceTrack.id === targetTrackId) return;
     const targetTrack = state.tracks.find((t) => t.id === targetTrackId);
     if (!targetTrack) return;
@@ -1310,6 +1383,7 @@
     sourceTrack.clips = sourceTrack.clips.filter((c) => c.id !== clipId);
     targetTrack.clips.push(clip);
     targetTrack.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+    state.selectedClipId = clipId;
     state.selectedTrackId = targetTrackId;
     renderAllTracks();
     updateClipInspector();
@@ -1777,6 +1851,171 @@
     });
   }
 
+  // --- External Media File Drag & Drop onto Timeline Tracks ---
+  function initTimelineFileDrop() {
+    const dropArea = dom.timelineCanvas || dom.timelineLanesArea;
+    if (!dropArea) return;
+
+    function getTargetLane(clientY) {
+      if (!dom.timelineLanesArea) return null;
+      const lanes = dom.timelineLanesArea.querySelectorAll('.track-lane-row');
+      for (const lane of lanes) {
+        const r = lane.getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) {
+          const tid = lane.dataset.trackId;
+          const trk = state.tracks.find((t) => t.id === tid);
+          return { laneEl: lane, track: trk };
+        }
+      }
+      return null;
+    }
+
+    function clearLaneDropHovers() {
+      if (!dom.timelineLanesArea) return;
+      dom.timelineLanesArea.querySelectorAll('.track-lane-row').forEach((l) => {
+        l.classList.remove('lane-drop-hover');
+      });
+    }
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      dropArea.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+
+        const hit = getTargetLane(e.clientY);
+        clearLaneDropHovers();
+        if (hit && hit.track && !hit.track.locked) {
+          hit.laneEl.classList.add('lane-drop-hover');
+        }
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach((eventName) => {
+      dropArea.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = dropArea.getBoundingClientRect();
+        if (
+          e.clientX < rect.left ||
+          e.clientX > rect.right ||
+          e.clientY < rect.top ||
+          e.clientY > rect.bottom
+        ) {
+          clearLaneDropHovers();
+        }
+      });
+    });
+
+    dropArea.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearLaneDropHovers();
+
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      const file = files[0];
+      const validMediaExts = [
+        '.mp4', '.mov', '.mkv', '.avi', '.webm', '.ts',
+        '.mp3', '.wav', '.aac', '.m4a', '.ogg', '.flac', '.m4v'
+      ];
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!validMediaExts.includes(ext)) {
+        showToast(`Desteklenmeyen dosya formatı: ${ext}`, 'error');
+        return;
+      }
+
+      const isAudioFile = ['.mp3', '.wav', '.aac', '.m4a', '.ogg', '.flac'].includes(ext);
+
+      // Calculate drop timestamp on timeline
+      const viewport = dom.timelineScrollViewport;
+      let dropTime = 0;
+      if (viewport) {
+        const vpRect = viewport.getBoundingClientRect();
+        const dropPx = e.clientX - vpRect.left + viewport.scrollLeft;
+        dropTime = Math.max(0, Math.round(pxToTime(dropPx) * 10) / 10);
+      }
+
+      // Determine target track
+      const hit = getTargetLane(e.clientY);
+      let targetTrack = null;
+      if (hit && hit.track && !hit.track.locked) {
+        if ((isAudioFile && hit.track.type === 'audio') || (!isAudioFile && hit.track.type === 'video')) {
+          targetTrack = hit.track;
+        }
+      }
+
+      if (!targetTrack) {
+        if (isAudioFile) {
+          targetTrack = state.tracks.find((t) => t.type === 'audio' && !t.locked);
+          if (!targetTrack) {
+            addTrack('audio');
+            targetTrack = state.tracks.filter((t) => t.type === 'audio').slice(-1)[0];
+          }
+        } else {
+          targetTrack = state.tracks.find((t) => t.type === 'video' && !t.locked);
+          if (!targetTrack) {
+            addTrack('video');
+            targetTrack = state.tracks.filter((t) => t.type === 'video').slice(-1)[0];
+          }
+        }
+      }
+
+      showToast(`"${file.name}" yükleniyor ve inceleniyor... ⏳`, 'info');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errRes = await res.json().catch(() => ({ detail: 'Dosya yükleme hatası' }));
+          throw new Error(errRes.detail || 'Dosya yüklenemedi');
+        }
+
+        const data = await res.json();
+        const mediaDuration = (data.metadata && data.metadata.duration) ? data.metadata.duration : 5.0;
+
+        pushTimelineHistory();
+
+        // Create new clip
+        const newClip = createClip(
+          `clip-${++clipCounter}`,
+          0.0,
+          mediaDuration,
+          dropTime,
+          1.0,
+          1.0,
+          data.file_id,
+          data.filename
+        );
+
+        targetTrack.clips.push(newClip);
+        targetTrack.clips.sort((a, b) => a.timeline_start - b.timeline_start);
+
+        // Adjust project duration if clip exceeds current duration
+        const clipEnd = dropTime + mediaDuration;
+        if (clipEnd > state.duration) {
+          state.duration = Math.ceil(clipEnd);
+          if (dom.metaDuration) {
+            dom.metaDuration.textContent = formatTime(state.duration);
+          }
+        }
+
+        selectClip(newClip.id);
+        renderAllTracks();
+        updateTimelineDurationBadge();
+        showToast(`"${data.filename}" başarıyla ${targetTrack.name} kanalına eklendi 🎬`, 'success');
+      } catch (err) {
+        showToast(`Hata: ${err.message}`, 'error');
+      }
+    });
+  }
+
   // --- Toolbar Handlers ---
   function initCapCutTimelineStudio() {
     if (dom.btnSplitClip) dom.btnSplitClip.addEventListener('click', splitClipAtPlayhead);
@@ -1820,6 +2059,7 @@
     initTimelineRulerScrubber();
     initClipInspectorListeners();
     initTimelineContextMenu();
+    initTimelineFileDrop();
   }
 
   // ---------------------------------------------------------------------------
