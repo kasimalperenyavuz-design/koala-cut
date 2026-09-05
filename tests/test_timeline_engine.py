@@ -164,3 +164,68 @@ def test_timeline_multi_track_audio_mixing():
     assert "adelay=2000|2000" in cmd_str
 
 
+@pytest.mark.asyncio
+async def test_timeline_multi_resolution_clips_export(tmp_path: Path):
+    """Verify that exporting timeline clips with differing resolutions and audio rates succeeds without status -22."""
+    ffmpeg = get_ffmpeg_path()
+    vid1 = str(tmp_path / "clip_16_9.mp4")
+    vid2 = str(tmp_path / "clip_9_16.mp4")
+    out_vid = str(tmp_path / "multi_res_output.mp4")
+
+    # Clip 1: 640x360 landscape @ 48000Hz audio
+    subprocess.run([
+        ffmpeg, "-y",
+        "-f", "lavfi", "-i", "testsrc=size=640x360:rate=30",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+        "-t", "2.0",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        vid1
+    ], check=True, capture_output=True)
+
+    # Clip 2: 360x640 portrait @ 44100Hz audio
+    subprocess.run([
+        ffmpeg, "-y",
+        "-f", "lavfi", "-i", "testsrc=size=360x640:rate=25",
+        "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=44100",
+        "-t", "2.0",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        vid2
+    ], check=True, capture_output=True)
+
+    builder = FFmpegCommandBuilder()
+    track = TimelineTrack(
+        id="v1",
+        type="video",
+        clips=[
+            TimelineClip(id="c1", file_id="f1", in_point=0.0, out_point=1.5, timeline_start=0.0),
+            TimelineClip(id="c2", file_id="f2", in_point=0.0, out_point=1.5, timeline_start=1.5),
+        ],
+    )
+    config = VideoFilterConfig(
+        timeline_tracks=[track],
+        mode="crf",
+        crf=23,
+        preset="ultrafast",
+    )
+    cmd = builder.build(
+        vid1,
+        out_vid,
+        config,
+        source_duration=3.0,
+        extra_inputs={"f1": vid1, "f2": vid2},
+    )
+
+    runner = AsyncFFmpegRunner()
+    result = await runner.run(cmd, expected_duration=3.0)
+    assert result.success is True
+    assert result.returncode == 0
+
+    meta = probe_media(out_vid)
+    assert meta["duration"] == pytest.approx(3.0, abs=0.5)
+    assert meta.get("video") is not None
+    assert meta.get("audio") is not None
+
+
+

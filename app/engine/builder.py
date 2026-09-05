@@ -289,27 +289,38 @@ class FFmpegCommandBuilder:
         video_bitrate_kbps = int(video_bits / effective_duration / 1000.0)
         return max(video_bitrate_kbps, 50)
 
-    def build_video_filters(self, config: VideoFilterConfig) -> list[str]:
+    def build_video_filters(
+        self,
+        config: VideoFilterConfig,
+        skip_dimensions: bool = False,
+        canvas_w: Optional[int] = None,
+        canvas_h: Optional[int] = None,
+    ) -> list[str]:
         """Generate video filter expressions (-vf) for dimensions, fitting, and fps."""
         filters: list[str] = []
 
         w, h = self.resolve_dimensions(config.width, config.height, config.aspect_ratio)
+        if w is None and canvas_w is not None:
+            w = canvas_w
+        if h is None and canvas_h is not None:
+            h = canvas_h
 
-        if w is not None and h is not None:
-            if config.fit_mode == "pad":
-                filters.append(
-                    f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2"
-                )
-            elif config.fit_mode == "crop":
-                filters.append(
-                    f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2"
-                )
-            else:  # scale
-                filters.append(f"scale={w}:{h}")
-        elif w is not None and h is None:
-            filters.append(f"scale={w}:-2")
-        elif h is not None and w is None:
-            filters.append(f"scale=-2:{h}")
+        if not skip_dimensions:
+            if w is not None and h is not None:
+                if config.fit_mode == "pad":
+                    filters.append(
+                        f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2"
+                    )
+                elif config.fit_mode == "crop":
+                    filters.append(
+                        f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2"
+                    )
+                else:  # scale
+                    filters.append(f"scale={w}:{h}")
+            elif w is not None and h is None:
+                filters.append(f"scale={w}:-2")
+            elif h is not None and w is None:
+                filters.append(f"scale=-2:{h}")
 
         if config.fps is not None and config.fps > 0:
             filters.append(f"fps=fps={config.fps}")
@@ -592,12 +603,51 @@ class FFmpegCommandBuilder:
             v_inputs: list[str] = []
             a_inputs: list[str] = []
 
+            target_w, target_h = self.resolve_dimensions(config.width, config.height, config.aspect_ratio)
+            if (target_w is None or target_h is None) and (n_clips > 1 or len(input_files) > 1 or overlay_video_clips):
+                try:
+                    from app.engine.probe import probe_media
+                    meta = probe_media(input_file)
+                    if meta and meta.video:
+                        src_w = meta.video.width
+                        src_h = meta.video.height
+                        if target_w is None and target_h is None:
+                            target_w, target_h = src_w, src_h
+                        elif target_w is not None:
+                            target_h = int(round(target_w * src_h / src_w))
+                        elif target_h is not None:
+                            target_w = int(round(target_h * src_w / src_h))
+                except Exception:
+                    pass
+
+            if (target_w is None or target_h is None) and (n_clips > 1 or len(input_files) > 1 or overlay_video_clips):
+                target_w = 1920
+                target_h = 1080
+
+            if target_w is not None and target_h is not None:
+                target_w = target_w if target_w % 2 == 0 else target_w + 1
+                target_h = target_h if target_h % 2 == 0 else target_h + 1
+
             for i, (clip, track_muted) in enumerate(base_video_clips):
                 v_tag = f"v{i}"
                 in_idx = file_to_idx.get(clip.file_id, 0) if clip.file_id else 0
                 speed = clip.speed if clip.speed > 0 else 1.0
                 pts_speed = f"setpts={1.0 / speed:.4f}*(PTS-STARTPTS)" if speed != 1.0 else "setpts=PTS-STARTPTS"
-                v_trim = f"[{in_idx}:v]trim=start={clip.in_point:.3f}:end={clip.out_point:.3f},{pts_speed}[{v_tag}]"
+                v_filters = [f"trim=start={clip.in_point:.3f}:end={clip.out_point:.3f}", pts_speed]
+                if target_w is not None and target_h is not None:
+                    if config.fit_mode == "crop":
+                        v_filters.append(
+                            f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}:(in_w-{target_w})/2:(in_h-{target_h})/2,setsar=1,format=yuv420p"
+                        )
+                    elif config.fit_mode == "scale":
+                        v_filters.append(
+                            f"scale={target_w}:{target_h},setsar=1,format=yuv420p"
+                        )
+                    else:  # pad
+                        v_filters.append(
+                            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p"
+                        )
+                v_trim = f"[{in_idx}:v]" + ",".join(v_filters) + f"[{v_tag}]"
                 complex_filters.append(v_trim)
                 v_inputs.append(f"[{v_tag}]")
 
@@ -605,7 +655,8 @@ class FFmpegCommandBuilder:
                     a_tag = f"a{i}"
                     atrim_parts = [
                         f"atrim=start={clip.in_point:.3f}:end={clip.out_point:.3f}",
-                        "asetpts=PTS-STARTPTS"
+                        "asetpts=PTS-STARTPTS",
+                        "aformat=sample_rates=44100:channel_layouts=stereo",
                     ]
                     if speed != 1.0:
                         atrim_parts.append(f"atempo={speed:.4f}")
@@ -644,6 +695,7 @@ class FFmpegCommandBuilder:
                     afilters = [
                         f"atrim=start={aclip.in_point:.3f}:end={aclip.out_point:.3f}",
                         "asetpts=PTS-STARTPTS",
+                        "aformat=sample_rates=44100:channel_layouts=stereo",
                     ]
                     if speed != 1.0:
                         afilters.append(f"atempo={speed:.4f}")
@@ -779,7 +831,12 @@ class FFmpegCommandBuilder:
                 current_a = None
 
             # Apply additional transformations (aspect ratio, scale, crop, pad, fps)
-            vf_list = self.build_video_filters(config)
+            vf_list = self.build_video_filters(
+                config,
+                skip_dimensions=(target_w is not None and target_h is not None),
+                canvas_w=target_w,
+                canvas_h=target_h,
+            )
             if vf_list:
                 vf_str = ",".join(vf_list)
                 complex_filters.append(f"{current_v}{vf_str}[v_out]")

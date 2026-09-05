@@ -18,6 +18,7 @@ class FFmpegExecutionError(Exception):
     """Raised when FFmpeg process terminates with a non-zero exit code."""
     def __init__(self, message: str, returncode: int, stderr: str):
         super().__init__(message)
+        self.message = message
         self.returncode = returncode
         self.stderr = stderr
 

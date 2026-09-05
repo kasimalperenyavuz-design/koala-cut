@@ -360,7 +360,7 @@ class JobManager:
                 lines = [l.strip() for l in exc.stderr.strip().splitlines() if l.strip()]
                 last_lines = lines[-4:] if len(lines) >= 4 else lines
                 stderr_snippet = ": " + " | ".join(last_lines)
-            job.error = f"{exc.message}{stderr_snippet}"
+            job.error = f"{exc}{stderr_snippet}"
             await self._publish_event(job)
 
         except asyncio.CancelledError:
