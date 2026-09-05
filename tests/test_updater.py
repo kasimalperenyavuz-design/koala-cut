@@ -36,7 +36,7 @@ def test_update_status_endpoint(client):
     data = res.json()
     assert "current_version" in data
     assert "repo" in data
-    assert data["current_version"] == "1.3.1"
+    assert data["current_version"] == "1.4.0"
 
 
 def test_update_config_endpoint(client):

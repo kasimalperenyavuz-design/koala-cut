@@ -217,11 +217,29 @@
     tabNavFormat: document.getElementById('tab-nav-format'),
     tabNavCompress: document.getElementById('tab-nav-compress'),
     tabNavClip: document.getElementById('tab-nav-clip'),
+    tabNavTransitions: document.getElementById('tab-nav-transitions'),
     tabNavAudio: document.getElementById('tab-nav-audio'),
     tabPanelFormat: document.getElementById('tab-panel-format'),
     tabPanelCompress: document.getElementById('tab-panel-compress'),
     tabPanelClip: document.getElementById('tab-panel-clip'),
+    tabPanelTransitions: document.getElementById('tab-panel-transitions'),
     tabPanelAudio: document.getElementById('tab-panel-audio'),
+
+    // Transitions Studio Elements (v1.4.0)
+    transitionCategoryPills: document.getElementById('transition-category-pills'),
+    transitionsCountBadge: document.getElementById('transitions-count-badge'),
+    transitionsCardsGrid: document.getElementById('transitions-cards-grid'),
+    transitionPacksContainer: document.getElementById('transition-packs-container'),
+    btnOpenCustomTransitions: document.getElementById('btn-open-custom-transitions'),
+
+    // Subtitle Bounding Box & Karaoke Elements (v1.4.0)
+    sliderSubtitleMaxWidth: document.getElementById('slider-subtitle-max-width'),
+    subtitleMaxWidthBadge: document.getElementById('subtitle-max-width-badge'),
+    sliderSubtitleYPos: document.getElementById('slider-subtitle-y-pos'),
+    subtitleYPosBadge: document.getElementById('subtitle-y-pos-badge'),
+    checkSubtitleKaraoke: document.getElementById('check-subtitle-karaoke'),
+    subtitleKaraokeOptions: document.getElementById('subtitle-karaoke-options'),
+    karaokeStyleGroup: document.getElementById('karaoke-style-group'),
 
     // Clip Inspector Elements
     clipInspectorBadge: document.getElementById('clip-inspector-badge'),
@@ -1965,6 +1983,108 @@
         laneEl.appendChild(clipEl);
       });
 
+      // Render transition dropzones and transition pills between adjacent video clips (v1.4.0)
+      if (isVideo && track.clips && track.clips.length > 1) {
+        const sortedClips = [...track.clips].sort((a, b) => a.timeline_start - b.timeline_start);
+        for (let i = 0; i < sortedClips.length - 1; i++) {
+          const cA = sortedClips[i];
+          const cB = sortedClips[i + 1];
+          const endA = cA.timeline_start + getClipDuration(cA);
+          const startB = cB.timeline_start;
+          const cutTime = (endA + startB) / 2;
+          const cutPx = timeToPx(cutTime);
+
+          // 1. Cut transition dropzone (Magnetic target for dragging transition cards)
+          const dropzoneEl = document.createElement('div');
+          dropzoneEl.className = 'cut-transition-dropzone';
+          dropzoneEl.style.left = `${cutPx}px`;
+          dropzoneEl.title = `Geçiş eklemek için buraya bırakın`;
+          dropzoneEl.innerHTML = `<i data-lucide="plus" class="w-2.5 h-2.5 text-indigo-300 pointer-events-none"></i>`;
+
+          dropzoneEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            dropzoneEl.classList.add('drop-target-hover');
+          });
+          dropzoneEl.addEventListener('dragleave', () => {
+            dropzoneEl.classList.remove('drop-target-hover');
+          });
+          dropzoneEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzoneEl.classList.remove('drop-target-hover');
+            const transId = e.dataTransfer.getData('text/plain');
+            if (transId) {
+              pushTimelineHistory();
+              cA.transition_out = transId;
+              cA.transition_duration = 0.5;
+              renderAllTracks();
+              showToast(`Geçiş eklendi! (0.5s)`, 'success');
+            }
+          });
+          laneEl.appendChild(dropzoneEl);
+
+          // 2. Active Transition Pill (if cA has transition_out)
+          if (cA.transition_out) {
+            const pillEl = document.createElement('div');
+            pillEl.className = 'timeline-transition-pill';
+            const dur = cA.transition_duration || 0.5;
+            const pillWidth = Math.max(42, timeToPx(dur));
+            pillEl.style.width = `${pillWidth}px`;
+            pillEl.style.left = `${cutPx - pillWidth / 2}px`;
+            pillEl.title = `Geçiş: ${cA.transition_out} (${dur}s) - Kaldırmak için tıklayın`;
+
+            pillEl.innerHTML = `
+              <div class="pill-handle pill-handle-left" title="Geçiş süresini sola uzat"></div>
+              <i data-lucide="wand-2" class="w-2.5 h-2.5 text-indigo-200 pointer-events-none"></i>
+              <span class="pointer-events-none">${dur.toFixed(1)}s</span>
+              <div class="pill-handle pill-handle-right" title="Geçiş süresini sağa uzat"></div>
+            `;
+
+            // Click on center to remove
+            pillEl.addEventListener('click', (e) => {
+              if (e.target.closest('.pill-handle')) return;
+              if (confirm(`"${cA.transition_out}" geçişini kaldırmak istiyor musunuz?`)) {
+                pushTimelineHistory();
+                delete cA.transition_out;
+                delete cA.transition_duration;
+                renderAllTracks();
+                showToast('Geçiş kaldırıldı', 'info');
+              }
+            });
+
+            // Resizing transition duration with handles
+            pillEl.querySelectorAll('.pill-handle').forEach((handle) => {
+              handle.addEventListener('pointerdown', (downEv) => {
+                downEv.stopPropagation();
+                downEv.preventDefault();
+                pushTimelineHistory();
+                const startClientX = downEv.clientX;
+                const initialDur = cA.transition_duration || 0.5;
+                const maxDur = Math.min(getClipDuration(cA) * 0.45, getClipDuration(cB) * 0.45, 3.0);
+
+                const onMove = (moveEv) => {
+                  const deltaX = Math.abs(moveEv.clientX - startClientX);
+                  const deltaDur = (deltaX / state.timelineZoom) * 2;
+                  let newDur = Math.max(0.1, Math.min(maxDur, initialDur + (moveEv.clientX > startClientX ? deltaDur : -deltaDur)));
+                  cA.transition_duration = Math.round(newDur * 10) / 10;
+                  renderAllTracks();
+                };
+
+                const onUp = () => {
+                  window.removeEventListener('pointermove', onMove);
+                  window.removeEventListener('pointerup', onUp);
+                };
+
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+              });
+            });
+
+            laneEl.appendChild(pillEl);
+          }
+        }
+      }
+
       dom.timelineLanesArea.appendChild(laneEl);
     });
 
@@ -2062,7 +2182,7 @@
     window.addEventListener('pointerup', onPointerUp);
   }
 
-  // --- Clip Position Dragging on Track (Horizontal + Vertical Cross-Track) ---
+  // --- Clip Position Dragging on Track (Horizontal + Vertical Cross-Track with Ghost Simulation) ---
   function initClipDragging(clip, track, downEvent) {
     downEvent.preventDefault();
     const startX = downEvent.clientX;
@@ -2070,6 +2190,17 @@
     const origTimelineStart = clip.timeline_start;
     let hasMoved = false;
     let currentTargetTrack = track;
+
+    const draggingEl = downEvent.target.closest('.timeline-clip-card, .timeline-text-clip-card, .timeline-audio-clip-card');
+    let ghostEl = null;
+
+    function ensureGhost() {
+      if (!ghostEl) {
+        ghostEl = document.createElement('div');
+        ghostEl.className = 'lane-drop-ghost-placeholder';
+        ghostEl.id = 'timeline-drag-ghost-placeholder';
+      }
+    }
 
     function getLaneUnderPointer(clientY) {
       if (!dom.timelineLanesArea) return null;
@@ -2079,9 +2210,12 @@
         if (clientY >= r.top && clientY <= r.bottom) {
           const tid = lane.dataset.trackId;
           const trk = state.tracks.find((t) => t.id === tid);
-          if (trk && trk.type === track.type && !trk.locked) {
-            return { laneEl: lane, track: trk };
-          }
+          const isCompatible = trk && (
+            (track.type === 'video' && trk.type === 'video') ||
+            (track.type === 'audio' && trk.type === 'audio') ||
+            (track.type === 'text' && trk.type === 'text')
+          ) && !trk.locked;
+          return { laneEl: lane, track: trk, isCompatible };
         }
       }
       return null;
@@ -2092,6 +2226,9 @@
       dom.timelineLanesArea.querySelectorAll('.track-lane-row').forEach((l) => {
         l.classList.remove('lane-drop-hover');
       });
+      if (ghostEl && ghostEl.parentNode) {
+        ghostEl.parentNode.removeChild(ghostEl);
+      }
     }
 
     const onPointerMove = (e) => {
@@ -2100,6 +2237,10 @@
       if ((Math.abs(dx) > 3 || Math.abs(dy) > 3) && !hasMoved) {
         hasMoved = true;
         pushTimelineHistory();
+        ensureGhost();
+        if (draggingEl) {
+          draggingEl.classList.add('is-dragging-vertical');
+        }
       }
       if (!hasMoved) return;
 
@@ -2108,40 +2249,58 @@
       newStart = snapTime(newStart, 0.2);
       clip.timeline_start = Math.round(newStart * 100) / 100;
 
+      const clipDur = getClipDuration(clip);
+      const clipLeftPx = timeToPx(clip.timeline_start);
+      const clipWidthPx = Math.max(28, timeToPx(clipDur));
+
+      // Smooth hardware-accelerated follow
+      if (draggingEl) {
+        draggingEl.style.left = `${clipLeftPx}px`;
+        draggingEl.style.transform = `translate3d(0, ${dy}px, 0) scale(1.02)`;
+      }
+
       if (dom.timelineSnapGuide) {
         dom.timelineSnapGuide.classList.remove('hidden');
-        dom.timelineSnapGuide.style.left = `${timeToPx(clip.timeline_start)}px`;
+        dom.timelineSnapGuide.style.left = `${clipLeftPx}px`;
       }
 
       if (track.type === 'text') {
         const overlay = (state.textOverlays || []).find((o) => o.id === clip.id);
         if (overlay) {
-          const dur = getClipDuration(clip);
           overlay.start_time = Math.round(clip.timeline_start * 10) / 10;
-          overlay.end_time = Math.round((clip.timeline_start + dur) * 10) / 10;
+          overlay.end_time = Math.round((clip.timeline_start + clipDur) * 10) / 10;
           updateTextOverlayInputsFromState(overlay);
           updateLiveTextOverlays(state.playheadTime);
         }
       }
 
-      // Check vertical track lane under cursor
+      // Detect vertical track lane under cursor & position ghost
       const hit = getLaneUnderPointer(e.clientY);
       clearLaneHighlights();
-      if (hit) {
-        currentTargetTrack = hit.track;
-        if (hit.track.id !== track.id) {
+      if (hit && hit.laneEl) {
+        if (hit.isCompatible) {
+          currentTargetTrack = hit.track;
           hit.laneEl.classList.add('lane-drop-hover');
+          ghostEl.classList.remove('invalid-lane');
+          ghostEl.style.left = `${clipLeftPx}px`;
+          ghostEl.style.width = `${clipWidthPx}px`;
+          if (ghostEl.parentNode !== hit.laneEl) {
+            hit.laneEl.appendChild(ghostEl);
+          }
+        } else {
+          currentTargetTrack = null;
+          ghostEl.classList.add('invalid-lane');
+          ghostEl.style.left = `${clipLeftPx}px`;
+          ghostEl.style.width = `${clipWidthPx}px`;
+          if (ghostEl.parentNode !== hit.laneEl) {
+            hit.laneEl.appendChild(ghostEl);
+          }
         }
       } else {
         currentTargetTrack = track;
-      }
-
-      renderTrackLanes();
-
-      // Find dragging element and add is-dragging style
-      const draggingEl = dom.timelineLanesArea.querySelector(`[data-clip-id="${clip.id}"]`);
-      if (draggingEl) {
-        draggingEl.classList.add('is-dragging');
+        if (ghostEl && ghostEl.parentNode) {
+          ghostEl.parentNode.removeChild(ghostEl);
+        }
       }
     };
 
@@ -2151,6 +2310,11 @@
       clearLaneHighlights();
       if (dom.timelineSnapGuide) {
         dom.timelineSnapGuide.classList.add('hidden');
+      }
+
+      if (draggingEl) {
+        draggingEl.classList.remove('is-dragging-vertical');
+        draggingEl.style.transform = '';
       }
 
       if (hasMoved) {
@@ -4369,6 +4533,7 @@
       { key: 'format', nav: dom.tabNavFormat, panel: dom.tabPanelFormat },
       { key: 'compress', nav: dom.tabNavCompress, panel: dom.tabPanelCompress },
       { key: 'clip', nav: dom.tabNavClip, panel: dom.tabPanelClip },
+      { key: 'transitions', nav: dom.tabNavTransitions, panel: dom.tabPanelTransitions },
       { key: 'audio', nav: dom.tabNavAudio, panel: dom.tabPanelAudio },
       { key: 'subtitle', nav: dom.tabNavSubtitle, panel: dom.tabPanelSubtitle },
       { key: 'text', nav: dom.tabNavText, panel: dom.tabPanelText },
@@ -4392,6 +4557,7 @@
       { key: 'format', nav: dom.tabNavFormat },
       { key: 'compress', nav: dom.tabNavCompress },
       { key: 'clip', nav: dom.tabNavClip },
+      { key: 'transitions', nav: dom.tabNavTransitions },
       { key: 'audio', nav: dom.tabNavAudio },
       { key: 'subtitle', nav: dom.tabNavSubtitle },
       { key: 'text', nav: dom.tabNavText },
@@ -4725,6 +4891,8 @@
           pos_y: c.pos_y || 0.0,
           rotation: c.rotation || 0.0,
           opacity: c.opacity !== undefined ? c.opacity : 1.0,
+          transition_out: c.transition_out || null,
+          transition_duration: Number(c.transition_duration) || 0.5,
         })),
       }));
     }
@@ -4734,10 +4902,14 @@
       config.target_lufs = -14.0;
     }
 
-    // AI Suite: Burn-in Subtitles
+    // AI Suite: Burn-in Subtitles (v1.4.0 with Bounding Box & Karaoke)
     if (dom.checkBurnSubtitles && dom.checkBurnSubtitles.checked && state.subtitles && state.subtitles.srt_file_path) {
       config.burn_subtitles = true;
       config.subtitle_file_path = state.subtitles.srt_file_path;
+      config.subtitle_max_width_pct = Number(state.subtitles.maxWidthPct) || 80;
+      config.subtitle_y_pos_pct = Number(state.subtitles.yPosPct) || 85;
+      config.subtitle_karaoke_enabled = !!state.subtitles.karaokeEnabled;
+      config.subtitle_karaoke_style = state.subtitles.karaokeStyle || 'pop';
       if (state.subtitleStyle) {
         config.subtitle_font = state.subtitleStyle.font || 'Arial';
         config.subtitle_font_size = Number(state.subtitleStyle.fontSize) || 22;
@@ -5290,8 +5462,68 @@
   }
 
   // ---------------------------------------------------------------------------
-  // AI Suite: Live Subtitle Overlay Preview
+  // AI Suite: Live Subtitle Overlay Preview & Bounding Box System (v1.4.0)
   // ---------------------------------------------------------------------------
+  function getVideoRenderedBox() {
+    const video = dom.videoPlayer;
+    const wrapper = dom.videoPreviewWrapper;
+    if (!video || !wrapper) return null;
+    const wr = wrapper.getBoundingClientRect();
+    const vw = video.videoWidth || 1920;
+    const vh = video.videoHeight || 1080;
+    if (wr.width === 0 || wr.height === 0) return null;
+
+    const wrapperRatio = wr.width / wr.height;
+    const videoRatio = vw / vh;
+
+    let rw, rh, rx, ry;
+    if (videoRatio > wrapperRatio) {
+      rw = wr.width;
+      rh = wr.width / videoRatio;
+      rx = 0;
+      ry = (wr.height - rh) / 2;
+    } else {
+      rh = wr.height;
+      rw = wr.height * videoRatio;
+      rx = (wr.width - rw) / 2;
+      ry = 0;
+    }
+    return { left: rx, top: ry, width: rw, height: rh };
+  }
+
+  function positionSubtitleOverlay() {
+    if (!dom.playerSubtitleOverlay) return;
+    const box = getVideoRenderedBox();
+    if (!box) return;
+    const maxW = ((state.subtitles.maxWidthPct || 80) / 100) * box.width;
+    const yPct = (state.subtitles.yPosPct || 85) / 100;
+    const topPos = box.top + box.height * yPct;
+
+    dom.playerSubtitleOverlay.style.width = `${maxW}px`;
+    dom.playerSubtitleOverlay.style.maxWidth = `${maxW}px`;
+    dom.playerSubtitleOverlay.style.left = `${box.left + (box.width - maxW) / 2}px`;
+    dom.playerSubtitleOverlay.style.top = `${topPos}px`;
+    dom.playerSubtitleOverlay.style.bottom = 'auto';
+    dom.playerSubtitleOverlay.style.transform = 'translateY(-50%)';
+  }
+
+  function renderKaraokeWords(words, curTime) {
+    if (!dom.playerSubtitleText) return;
+    dom.playerSubtitleText.innerHTML = '';
+    const kStyle = state.subtitles.karaokeStyle || 'pop';
+
+    words.forEach((w) => {
+      const span = document.createElement('span');
+      span.className = 'karaoke-word';
+      span.textContent = w.word;
+      if (curTime >= w.start && curTime <= w.end) {
+        span.classList.add(`active-${kStyle}`);
+      }
+      dom.playerSubtitleText.appendChild(span);
+      dom.playerSubtitleText.appendChild(document.createTextNode(' '));
+    });
+  }
+
   function updateLiveSubtitleOverlay(curTime) {
     if (!dom.playerSubtitleOverlay || !dom.playerSubtitleText) return;
     if (!state.subtitles || !state.subtitles.segments || state.subtitles.segments.length === 0) {
@@ -5300,11 +5532,99 @@
     }
     const seg = state.subtitles.segments.find((s) => curTime >= s.start && curTime <= s.end);
     if (seg && seg.text && seg.text.trim()) {
-      dom.playerSubtitleText.textContent = seg.text.trim();
+      if (state.subtitles.karaokeEnabled && seg.words && seg.words.length > 0) {
+        renderKaraokeWords(seg.words, curTime);
+      } else {
+        dom.playerSubtitleText.textContent = seg.text.trim();
+      }
+      positionSubtitleOverlay();
       dom.playerSubtitleOverlay.classList.remove('hidden');
     } else {
       dom.playerSubtitleOverlay.classList.add('hidden');
     }
+  }
+
+  function initSubtitleOverlayDragging() {
+    if (!dom.playerSubtitleOverlay || !dom.videoPreviewWrapper) return;
+
+    dom.playerSubtitleOverlay.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const box = getVideoRenderedBox();
+      if (!box) return;
+      const wrapRect = dom.videoPreviewWrapper.getBoundingClientRect();
+
+      const onPointerMove = (ev) => {
+        const relY = ev.clientY - (wrapRect.top + box.top);
+        const yPct = Math.max(10, Math.min(90, Math.round((relY / box.height) * 100)));
+        state.subtitles.yPosPct = yPct;
+        if (dom.sliderSubtitleYPos) dom.sliderSubtitleYPos.value = yPct;
+        if (dom.subtitleYPosBadge) dom.subtitleYPosBadge.textContent = `%${yPct}`;
+        positionSubtitleOverlay();
+      };
+
+      const onPointerUp = () => {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
+
+    window.addEventListener('resize', positionSubtitleOverlay);
+    if (dom.videoPlayer) {
+      dom.videoPlayer.addEventListener('loadedmetadata', positionSubtitleOverlay);
+    }
+  }
+
+  function initSubtitleBoundingBoxControls() {
+    if (dom.sliderSubtitleMaxWidth && dom.subtitleMaxWidthBadge) {
+      dom.sliderSubtitleMaxWidth.addEventListener('input', (e) => {
+        const val = Number(e.target.value);
+        state.subtitles.maxWidthPct = val;
+        dom.subtitleMaxWidthBadge.textContent = `%${val}`;
+        positionSubtitleOverlay();
+      });
+    }
+
+    if (dom.sliderSubtitleYPos && dom.subtitleYPosBadge) {
+      dom.sliderSubtitleYPos.addEventListener('input', (e) => {
+        const val = Number(e.target.value);
+        state.subtitles.yPosPct = val;
+        dom.subtitleYPosBadge.textContent = `%${val}`;
+        positionSubtitleOverlay();
+      });
+    }
+
+    if (dom.checkSubtitleKaraoke) {
+      dom.checkSubtitleKaraoke.addEventListener('change', (e) => {
+        state.subtitles.karaokeEnabled = e.target.checked;
+        if (dom.subtitleKaraokeOptions) {
+          dom.subtitleKaraokeOptions.classList.toggle('hidden', !e.target.checked);
+        }
+        updateLiveSubtitleOverlay(state.playheadTime);
+      });
+    }
+
+    if (dom.karaokeStyleGroup) {
+      dom.karaokeStyleGroup.querySelectorAll('.karaoke-style-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          dom.karaokeStyleGroup.querySelectorAll('.karaoke-style-btn').forEach((b) => {
+            b.classList.remove('active', 'bg-amber-500/20', 'border-amber-500/40', 'text-white');
+            b.classList.add('bg-slate-800', 'text-slate-300');
+          });
+          btn.classList.add('active', 'bg-amber-500/20', 'border-amber-500/40', 'text-white');
+          btn.classList.remove('bg-slate-800', 'text-slate-300');
+          state.subtitles.karaokeStyle = btn.dataset.style || 'pop';
+          updateLiveSubtitleOverlay(state.playheadTime);
+        });
+      });
+    }
+
+    initSubtitleOverlayDragging();
   }
 
   // ---------------------------------------------------------------------------
@@ -6368,6 +6688,208 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Transitions Studio Module (v1.4.0 - CapCut & Premiere Pro Transition Studio)
+  // ---------------------------------------------------------------------------
+  async function loadTransitionsCatalog() {
+    try {
+      const res = await fetch('/api/transitions/catalog');
+      if (!res.ok) return;
+      const data = await res.json();
+      state.transitionsCatalog = data;
+      renderTransitionsGrid('all');
+      renderTransitionPacks();
+      if (dom.transitionsCountBadge) {
+        const total = (data.builtin || []).length + (data.custom || []).length;
+        dom.transitionsCountBadge.textContent = `${total} Geçiş`;
+      }
+    } catch (e) {
+      console.warn('Failed to load transitions catalog:', e);
+    }
+  }
+
+  function renderTransitionsGrid(selectedCategory = 'all') {
+    if (!dom.transitionsCardsGrid || !state.transitionsCatalog) return;
+    const cat = state.transitionsCatalog;
+    let list = [...(cat.builtin || [])];
+    if (cat.custom && cat.custom.length > 0) {
+      list = list.concat(cat.custom);
+    }
+    if (cat.pack_items && cat.pack_items.length > 0) {
+      list = list.concat(cat.pack_items);
+    }
+
+    if (selectedCategory !== 'all') {
+      list = list.filter((t) => t.category === selectedCategory);
+    }
+
+    dom.transitionsCardsGrid.innerHTML = '';
+    list.forEach((trans) => {
+      const card = document.createElement('div');
+      card.className = 'transition-card';
+      card.draggable = true;
+      card.dataset.transitionId = trans.id || trans.xfade_type;
+
+      card.innerHTML = `
+        <div class="transition-card-icon-box">
+          <i data-lucide="${trans.icon || 'sparkles'}" class="w-4 h-4 text-indigo-400"></i>
+        </div>
+        <span class="text-[11px] font-semibold text-slate-200 truncate max-w-full">${trans.name}</span>
+        <span class="text-[9px] text-slate-400 truncate max-w-full">${trans.description || ''}</span>
+      `;
+
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', trans.id || trans.xfade_type);
+        e.dataTransfer.effectAllowed = 'copy';
+        document.querySelectorAll('.cut-transition-dropzone').forEach((dz) => {
+          dz.classList.add('dropzone-highlight-active');
+        });
+      });
+
+      card.addEventListener('dragend', () => {
+        document.querySelectorAll('.cut-transition-dropzone').forEach((dz) => {
+          dz.classList.remove('dropzone-highlight-active');
+        });
+      });
+
+      card.addEventListener('click', () => {
+        const sel = getSelectedClip();
+        if (sel && sel.track.type === 'video') {
+          pushTimelineHistory();
+          sel.clip.transition_out = trans.id || trans.xfade_type;
+          sel.clip.transition_duration = 0.5;
+          renderAllTracks();
+          showToast(`"${trans.name}" klibin çıkışına geçiş olarak uygulandı.`, 'success');
+        } else {
+          showToast('Klipler arasına sürükleyip bırakın veya zaman çizgisinden bir klip seçin.', 'info');
+        }
+      });
+
+      dom.transitionsCardsGrid.appendChild(card);
+    });
+
+    refreshIcons();
+  }
+
+  function renderTransitionPacks() {
+    if (!dom.transitionPacksContainer || !state.transitionsCatalog) return;
+    const packs = state.transitionsCatalog.packs || [];
+    dom.transitionPacksContainer.innerHTML = '';
+
+    packs.forEach((pack) => {
+      const card = document.createElement('div');
+      card.className = 'p-2.5 rounded-lg bg-[#18181c] border border-white/10 space-y-2';
+
+      const isInstalled = pack.installed;
+      const prog = state.activeTransitionPackProgress[pack.id];
+
+      card.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="space-y-0.5">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-semibold text-white">${pack.name}</span>
+              <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold">${pack.badge || 'Paket'}</span>
+            </div>
+            <p class="text-[10px] text-slate-400">${pack.description} (${pack.item_count} Efekt &bull; ${pack.size_mb} MB)</p>
+          </div>
+          <button class="btn-pack-download px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+            isInstalled
+              ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30'
+              : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20'
+          }" data-pack-id="${pack.id}">
+            <i data-lucide="${isInstalled ? 'check' : 'download'}" class="w-3.5 h-3.5"></i>
+            <span>${isInstalled ? 'Yüklendi' : 'İndir'}</span>
+          </button>
+        </div>
+        <div class="pack-progress-bar-wrap w-full bg-slate-800 h-1.5 rounded-full overflow-hidden ${prog ? '' : 'hidden'}">
+          <div class="pack-progress-bar h-full bg-indigo-500 rounded-full transition-all duration-300" style="width: ${prog ? prog.progress : 0}%"></div>
+        </div>
+      `;
+
+      const btnDownload = card.querySelector('.btn-pack-download');
+      if (btnDownload && !isInstalled) {
+        btnDownload.addEventListener('click', () => {
+          startPackDownload(pack.id, card);
+        });
+      }
+
+      dom.transitionPacksContainer.appendChild(card);
+    });
+
+    refreshIcons();
+  }
+
+  async function startPackDownload(packId, cardEl) {
+    try {
+      const res = await fetch(`/api/transitions/download/${packId}`, { method: 'POST' });
+      if (!res.ok) throw new Error('Download request failed');
+
+      const progWrap = cardEl.querySelector('.pack-progress-bar-wrap');
+      const progBar = cardEl.querySelector('.pack-progress-bar');
+      const btn = cardEl.querySelector('.btn-pack-download');
+      if (progWrap) progWrap.classList.remove('hidden');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>İndiriliyor...</span>`;
+        refreshIcons();
+      }
+
+      const interval = setInterval(async () => {
+        try {
+          const pres = await fetch(`/api/transitions/download/progress/${packId}`);
+          if (pres.ok) {
+            const pdata = await pres.json();
+            state.activeTransitionPackProgress[packId] = pdata;
+            if (progBar) progBar.style.width = `${pdata.progress}%`;
+            if (pdata.status === 'completed' || pdata.progress >= 100) {
+              clearInterval(interval);
+              showToast('Geçiş paketi başarıyla indirildi ve kütüphaneye eklendi!', 'success');
+              await loadTransitionsCatalog();
+            } else if (pdata.status === 'error') {
+              clearInterval(interval);
+              showToast(`Paket indirme hatası: ${pdata.message}`, 'error');
+            }
+          }
+        } catch (e) {
+          clearInterval(interval);
+        }
+      }, 500);
+    } catch (err) {
+      showToast('Paket indirme başlatılamadı: ' + err.message, 'error');
+    }
+  }
+
+  function initTransitionsStudio() {
+    loadTransitionsCatalog();
+
+    if (dom.transitionCategoryPills) {
+      dom.transitionCategoryPills.querySelectorAll('.transition-cat-pill').forEach((pill) => {
+        pill.addEventListener('click', () => {
+          dom.transitionCategoryPills.querySelectorAll('.transition-cat-pill').forEach((p) => {
+            p.classList.remove('active', 'bg-indigo-600', 'text-white');
+            p.classList.add('bg-slate-800', 'text-slate-300');
+          });
+          pill.classList.add('active', 'bg-indigo-600', 'text-white');
+          pill.classList.remove('bg-slate-800', 'text-slate-300');
+          renderTransitionsGrid(pill.dataset.category || 'all');
+        });
+      });
+    }
+
+    if (dom.btnOpenCustomTransitions) {
+      dom.btnOpenCustomTransitions.addEventListener('click', async () => {
+        try {
+          const res = await fetch('/api/transitions/open-folder', { method: 'POST' });
+          if (res.ok) {
+            showToast('Özel geçiş klasörü Windows Gezgini üzerinde açıldı.', 'info');
+          }
+        } catch (e) {
+          showToast('Klasör açılamadı', 'error');
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Bootstrapping
   // ---------------------------------------------------------------------------
   function init() {
@@ -6383,6 +6905,8 @@
     initSilenceDetector();
     initSubtitleStudio();
     initSubtitleTypography();
+    initSubtitleBoundingBoxControls();
+    initTransitionsStudio();
     initTextOverlayModule();
     initAspectRatioControls();
     initResolutionAndFpsControls();

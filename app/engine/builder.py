@@ -63,6 +63,9 @@ class TimelineClip(BaseModel):
     # AI Suite: Neural Voice Isolation (RNNoise)
     neural_voice_isolation: bool = Field(default=False, description="Apply RNNoise deep learning voice isolation")
     voice_isolation_mix: float = Field(default=1.0, ge=0.0, le=1.0, description="Voice isolation intensity (0.0 - 1.0)")
+    # Transitions Suite (v1.4.0)
+    transition_out: Optional[str] = Field(default=None, description="Transition effect on cut exit (e.g. 'fade', 'wipeleft', 'whip_left')")
+    transition_duration: float = Field(default=0.5, ge=0.05, le=5.0, description="Duration of transition in seconds")
 
     @model_validator(mode="after")
     def validate_clip(self) -> "TimelineClip":
@@ -155,6 +158,10 @@ class VideoFilterConfig(BaseModel):
     subtitle_color: str = Field(default="#FFFFFF", description="Subtitle text color in hex")
     subtitle_style_preset: str = Field(default="outline", description="Preset: 'outline', 'box', 'yellow_pop', 'shadow', 'bar'")
     subtitle_position: str = Field(default="bottom", description="Position: 'bottom', 'middle', 'top'")
+    subtitle_max_width_pct: int = Field(default=80, ge=40, le=100, description="Maximum width constraint percent (40-100%)")
+    subtitle_y_pos_pct: int = Field(default=85, ge=10, le=95, description="Vertical position percent (10=top, 50=center, 85=bottom)")
+    subtitle_karaoke_enabled: bool = Field(default=False, description="Enable kinetic word highlight")
+    subtitle_karaoke_style: str = Field(default="pop", description="Karaoke highlight style ('pop', 'glow', 'box')")
     # Custom Text Overlays (Videoya Metin / Başlık Ekleme)
     text_overlays: list[TextOverlay] = Field(default_factory=list, description="Custom text elements overlayed on video")
     fast_seek: bool = Field(default=True, description="Place trim flags before input for fast seek")
@@ -332,13 +339,22 @@ class FFmpegCommandBuilder:
             else:  # outline (default)
                 style_parts.extend(["BorderStyle=1", "Outline=2.2", "OutlineColour=&H00000000", "Shadow=0"])
 
+            effective_w = w or 1280
+            effective_h = h or 720
+            margin_x = max(20, int(effective_w * (1.0 - (config.subtitle_max_width_pct or 80) / 100.0) / 2.0))
+            
+            style_parts.append(f"MarginL={margin_x}")
+            style_parts.append(f"MarginR={margin_x}")
+            style_parts.append("WrapStyle=0")
+
             pos = config.subtitle_position or "bottom"
             if pos == "top":
-                style_parts.extend(["Alignment=6", "MarginV=30"])
+                style_parts.extend(["Alignment=6", f"MarginV={max(20, int(effective_h * 0.08))}"])
             elif pos == "middle":
                 style_parts.extend(["Alignment=5", "MarginV=0"])
             else:
-                style_parts.extend(["Alignment=2", "MarginV=30"])
+                margin_v = max(20, int(effective_h * (1.0 - (config.subtitle_y_pos_pct or 85) / 100.0)))
+                style_parts.extend(["Alignment=2", f"MarginV={margin_v}"])
 
             style_str = f"force_style='{','.join(style_parts)}'"
             filters.append(f"subtitles=filename='{safe_sub_path}':{style_str}")
@@ -654,7 +670,47 @@ class FFmpegCommandBuilder:
                     complex_filters.append(filter_chain)
                     a_inputs.append(f"[{a_tag}]")
 
-            if n_clips > 1:
+            # Check if any transition is configured between clips
+            any_transitions = any(getattr(c, "transition_out", None) for c, _ in base_video_clips[:-1])
+
+            if n_clips > 1 and any_transitions:
+                from app.engine.transitions import TransitionManager
+                curr_v = v_inputs[0]
+                curr_a = a_inputs[0] if (not is_multi_track and not config.remove_audio and len(a_inputs) == n_clips) else None
+                accum_dur = base_video_clips[0][0].duration
+
+                for i in range(n_clips - 1):
+                    clip_a = base_video_clips[i][0]
+                    clip_b = base_video_clips[i + 1][0]
+                    next_v = v_inputs[i + 1]
+                    next_a = a_inputs[i + 1] if curr_a is not None else None
+
+                    trans = clip_a.transition_out or "fade"
+                    t_info = TransitionManager.get_transition_by_id(trans)
+                    xfade_name = t_info["xfade_type"] if (t_info and "xfade_type" in t_info) else trans
+
+                    trans_dur = min(clip_a.transition_duration or 0.5, accum_dur * 0.45, clip_b.duration * 0.45)
+                    trans_dur = max(0.05, trans_dur)
+                    offset = max(0.0, accum_dur - trans_dur)
+
+                    out_v = f"v_xfade_{i}"
+                    complex_filters.append(
+                        f"{curr_v}{next_v}xfade=transition={xfade_name}:duration={trans_dur:.3f}:offset={offset:.3f}[{out_v}]"
+                    )
+                    curr_v = f"[{out_v}]"
+
+                    if curr_a is not None and next_a is not None:
+                        out_a = f"a_xfade_{i}"
+                        complex_filters.append(
+                            f"{curr_a}{next_a}acrossfade=d={trans_dur:.3f}:c1=tri:c2=tri[{out_a}]"
+                        )
+                        curr_a = f"[{out_a}]"
+
+                    accum_dur = accum_dur + clip_b.duration - trans_dur
+
+                current_v = curr_v
+                current_a = curr_a
+            elif n_clips > 1:
                 if not is_multi_track and not config.remove_audio and len(a_inputs) == n_clips:
                     concat_parts = "".join(f"{v_inputs[i]}{a_inputs[i]}" for i in range(n_clips))
                     complex_filters.append(f"{concat_parts}concat=n={n_clips}:v=1:a=1[v_concat][a_concat]")

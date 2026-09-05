@@ -839,3 +839,218 @@ html.light .timeline-text-clip-card.selected {
   border-color: var(--accent) !important;
 }
 
+/* ==========================================================================
+   v1.4.0: TIMELINE VERTICAL DRAG GHOSTING & DROP PLACEHOLDER
+   ========================================================================== */
+.lane-drop-ghost-placeholder {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 5px;
+  background: rgba(61, 126, 255, 0.25);
+  border: 2px dashed #70a5ff;
+  pointer-events: none;
+  z-index: 25;
+  box-shadow: 0 0 14px rgba(61, 126, 255, 0.4);
+  animation: ghostPulse 1.2s infinite ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lane-drop-ghost-placeholder::after {
+  content: "Bırak";
+  font-size: 10px;
+  font-weight: bold;
+  color: #a5c6ff;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.lane-drop-ghost-placeholder.invalid-lane {
+  background: rgba(244, 63, 94, 0.25) !important;
+  border-color: #f43f5e !important;
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.4) !important;
+}
+
+.lane-drop-ghost-placeholder.invalid-lane::after {
+  content: "Geçersiz Kanal";
+  color: #fca5a5;
+}
+
+@keyframes ghostPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.95; transform: scale(1.01); }
+}
+
+/* Dragging state for timeline clip card */
+.timeline-clip-card.is-dragging-vertical {
+  z-index: 60 !important;
+  opacity: 0.92;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7), 0 0 0 2px var(--accent) !important;
+  cursor: grabbing !important;
+}
+
+/* ==========================================================================
+   v1.4.0: TRANSITION DROPZONES & TIMELINE PILLS
+   ========================================================================== */
+.cut-transition-dropzone {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 22px;
+  margin-left: -11px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.2);
+  border: 1.5px dashed rgba(165, 180, 252, 0.8);
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: copy;
+  transition: all 0.15s ease;
+  animation: dropzoneGlow 1s infinite alternate;
+}
+
+.cut-transition-dropzone:hover, .cut-transition-dropzone.drop-target-hover {
+  background: rgba(99, 102, 241, 0.6);
+  border-color: #ffffff;
+  transform: scale(1.15);
+  box-shadow: 0 0 12px rgba(129, 140, 248, 0.8);
+}
+
+@keyframes dropzoneGlow {
+  from { box-shadow: 0 0 4px rgba(99, 102, 241, 0.4); }
+  to { box-shadow: 0 0 10px rgba(129, 140, 248, 0.8); }
+}
+
+/* Timeline Transition Pill (e.g. [ ⧖ 0.5s ]) */
+.timeline-transition-pill {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #4338ca, #3730a3);
+  border: 1px solid #818cf8;
+  color: #ffffff;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  z-index: 30;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.timeline-transition-pill:hover {
+  transform: scale(1.04);
+  border-color: #c7d2fe;
+  box-shadow: 0 0 10px rgba(129, 140, 248, 0.6);
+}
+
+.timeline-transition-pill .pill-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+  opacity: 0.6;
+  background: #c7d2fe;
+}
+
+.timeline-transition-pill .pill-handle:hover {
+  opacity: 1;
+  background: #ffffff;
+}
+
+.timeline-transition-pill .pill-handle-left { left: 0; border-radius: 3px 0 0 3px; }
+.timeline-transition-pill .pill-handle-right { right: 0; border-radius: 0 3px 3px 0; }
+
+/* ==========================================================================
+   v1.4.0: TRANSITIONS STUDIO CARDS (CapCut / Premiere Preview)
+   ========================================================================== */
+.transition-card {
+  position: relative;
+  border-radius: 8px;
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.transition-card:active {
+  cursor: grabbing;
+}
+
+.transition-card:hover {
+  border-color: #6366f1;
+  background: #1c1b26;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25);
+}
+
+.transition-card-icon-box {
+  width: 38px;
+  height: 28px;
+  border-radius: 5px;
+  background: #1e1e28;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.transition-card:hover .transition-card-icon-box {
+  border-color: #818cf8;
+  background: #28273c;
+}
+
+/* ==========================================================================
+   v1.4.0: TIKTOK / REELS KINETIC KARAOKE WORD HIGHLIGHTS
+   ========================================================================== */
+.karaoke-word {
+  display: inline-block;
+  margin: 0 2px;
+  transition: transform 0.12s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.12s, text-shadow 0.12s;
+}
+
+.karaoke-word.active-pop {
+  color: #ffeb3b !important;
+  transform: scale(1.22) translateY(-2px);
+  text-shadow: 0 0 12px rgba(255, 235, 59, 0.9), 0 2px 4px rgba(0, 0, 0, 0.9);
+  font-weight: 900;
+}
+
+.karaoke-word.active-glow {
+  color: #00e5ff !important;
+  transform: scale(1.12);
+  text-shadow: 0 0 14px rgba(0, 229, 255, 1), 0 0 6px rgba(0, 229, 255, 0.8);
+  font-weight: 800;
+}
+
+.karaoke-word.active-box {
+  background: #ffeb3b !important;
+  color: #000000 !important;
+  padding: 1px 5px;
+  border-radius: 4px;
+  transform: scale(1.1);
+  font-weight: 900;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+

@@ -627,6 +627,51 @@ async def download_subtitles_endpoint(sub_id: str, format: str = "srt"):
 
 
 # ---------------------------------------------------------------------------
+# Transition Studio Endpoints (v1.4.0)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/transitions/catalog")
+async def get_transitions_catalog():
+    """Return all built-in, cloud packs, and user custom transitions."""
+    from app.engine.transitions import TransitionManager
+    return TransitionManager.get_catalog()
+
+
+@app.post("/api/transitions/download/{pack_id}")
+async def download_transition_pack(pack_id: str):
+    """Trigger background download of a transition pack."""
+    from app.engine.transitions import TransitionManager
+    asyncio.create_task(TransitionManager.download_pack(pack_id))
+    return {"status": "started", "pack_id": pack_id}
+
+
+@app.get("/api/transitions/download/progress/{pack_id}")
+async def get_transition_pack_progress(pack_id: str):
+    """Check download status of a transition pack."""
+    from app.engine.transitions import TransitionManager
+    return TransitionManager.get_download_progress(pack_id)
+
+
+@app.post("/api/transitions/open-folder")
+async def open_transitions_folder():
+    """Open user's custom transitions folder in Explorer."""
+    from app.engine.transitions import get_custom_transitions_dir
+    custom_dir = get_custom_transitions_dir()
+    os.makedirs(custom_dir, exist_ok=True)
+    try:
+        if sys.platform == "win32":
+            os.startfile(custom_dir)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", custom_dir])
+        else:
+            subprocess.Popen(["xdg-open", custom_dir])
+        return {"status": "opened", "path": custom_dir}
+    except Exception as e:
+        logger.error("Failed to open transitions folder: %s", e)
+        return {"status": "error", "message": str(e), "path": custom_dir}
+
+
+# ---------------------------------------------------------------------------
 # Static SPA Mount & Fallback Index
 # ---------------------------------------------------------------------------
 

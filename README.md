@@ -1,24 +1,24 @@
 # 🐨 koala-cut - Profesyonel Masaüstü Video Kurgu, Ses İyileştirme ve Akıllı Sıkıştırma Stüdyosu
 
-[![GitHub Release](https://img.shields.io/github/v/release/kasimalperenyavuz-design/koala-cut?style=flat-square&color=6366f1)](https://github.com/kasimalperenyavuz-design/koala-cut/releases/tag/v1.3.1)
+[![GitHub Release](https://img.shields.io/github/v/release/kasimalperenyavuz-design/koala-cut?style=flat-square&color=6366f1)](https://github.com/kasimalperenyavuz-design/koala-cut/releases/tag/v1.4.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows-blue.svg?style=flat-square)](https://github.com/kasimalperenyavuz-design/koala-cut/releases)
 [![Python](https://img.shields.io/badge/Python-3.11+-amber.svg?style=flat-square)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/Tests-92%20passed-success.svg?style=flat-square)](#-testler-ve-doğrulama)
+[![Tests](https://img.shields.io/badge/Tests-99%20passed-success.svg?style=flat-square)](#-testler-ve-doğrulama)
 [![Privacy](https://img.shields.io/badge/Offline-100%25%20Private-purple.svg?style=flat-square)](#)
 
-**koala-cut**, modern içerik üreticileri için tasarlanmış; çoklu iz (multi-track) zaman çizgisi, bağımsız metin izi, yapay zeka destekli ses izolasyonu, şık altyazı tipografisi ve GPU hızlandırmalı akıllı sıkıştırma yeteneklerine sahip modern, **%100 yerel (offline)** çalışan bir video kurgu ve optimizasyon stüdyosudur.
+**koala-cut**, modern içerik üreticileri için tasarlanmış; çoklu iz (multi-track) zaman çizgisi, Premiere Pro & CapCut tarzı sürükle-bırak geçiş stüdyosu, bağımsız metin izi, yapay zeka ses izolasyonu & kinetik altyazı motoru ve GPU hızlandırmalı akıllı sıkıştırma yeteneklerine sahip modern, **%100 yerel (offline)** çalışan bir video kurgu ve optimizasyon stüdyosudur.
 
 ---
 
 ## 📥 İndirme ve Hızlı Kurulum
 
-En son sürüm olan **v1.3.1** paketlerini doğrudan GitHub Releases üzerinden edinebilirsiniz:
+En son büyük sürüm olan **v1.4.0** paketlerini doğrudan GitHub Releases üzerinden edinebilirsiniz:
 
 | Paket | İndirme Bağlantısı | Boyut | Açıklama |
 |---|---|---|---|
-| **Kurulum Sihirbazı (Önerilen)** | [⬇️ koala-cut-setup.exe](https://github.com/kasimalperenyavuz-design/koala-cut/releases/download/v1.3.1/koala-cut-setup.exe) | ~473 MB | Windows kurulum sihirbazı. FFmpeg, FFprobe ve Whisper AI motoru içinde gömülü gelir. |
-| **Taşınabilir Sürüm (Portable)** | [⬇️ koala-cut.exe](https://github.com/kasimalperenyavuz-design/koala-cut/releases/download/v1.3.1/koala-cut.exe) | ~370 MB | Kurulum gerektirmeyen tekil masaüstü çalıştırılabilir dosyası. |
+| **Kurulum Sihirbazı (Önerilen)** | [⬇️ koala-cut-setup.exe](https://github.com/kasimalperenyavuz-design/koala-cut/releases/download/v1.4.0/koala-cut-setup.exe) | ~475 MB | Windows kurulum sihirbazı. FFmpeg, FFprobe ve Whisper AI motoru içinde gömülü gelir. |
+| **Taşınabilir Sürüm (Portable)** | [⬇️ koala-cut.exe](https://github.com/kasimalperenyavuz-design/koala-cut/releases/download/v1.4.0/koala-cut.exe) | ~372 MB | Kurulum gerektirmeyen tekil masaüstü çalıştırılabilir dosyası. |
 
 ---
 

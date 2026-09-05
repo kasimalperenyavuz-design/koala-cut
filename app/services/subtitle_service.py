@@ -15,12 +15,49 @@ from pydantic import BaseModel, Field
 from app.engine.binaries import get_ffmpeg_path
 
 
+class WordTiming(BaseModel):
+    """Timestamp for an individual spoken word for kinetic/karaoke subtitles."""
+    word: str = Field(description="Spoken word")
+    start: float = Field(description="Start time in seconds")
+    end: float = Field(description="End time in seconds")
+    probability: float = Field(default=1.0, description="Confidence score")
+
+
+def wrap_balanced_lines(text: str, max_chars: int = 32) -> str:
+    """Intelligently split a single long subtitle line into two balanced lines at word boundaries."""
+    text = text.strip()
+    if len(text) <= max_chars or "\n" in text:
+        return text
+    
+    words = text.split()
+    if len(words) <= 2:
+        return text
+
+    total_len = len(text)
+    half = total_len / 2
+    best_idx = 1
+    best_diff = float("inf")
+    
+    cur_len = 0
+    for i in range(len(words) - 1):
+        cur_len += len(words[i]) + 1
+        diff = abs(cur_len - half)
+        if diff < best_diff:
+            best_diff = diff
+            best_idx = i + 1
+
+    line1 = " ".join(words[:best_idx])
+    line2 = " ".join(words[best_idx:])
+    return f"{line1}\n{line2}"
+
+
 class SubtitleSegment(BaseModel):
-    """A subtitle segment with millisecond timestamps and text."""
+    """A subtitle segment with millisecond timestamps, balanced text, and word-level timings."""
     id: int = Field(description="Sequential subtitle index")
     start: float = Field(description="Start time in seconds")
     end: float = Field(description="End time in seconds")
     text: str = Field(description="Transcribed text line")
+    words: list[WordTiming] = Field(default_factory=list, description="Word-level timestamps for karaoke animations")
 
     @property
     def start_timecode_srt(self) -> str:
@@ -176,6 +213,7 @@ class SubtitleService:
                     temp_wav,
                     language=lang_arg,
                     beam_size=3,
+                    word_timestamps=True,
                     vad_filter=True,
                     vad_parameters=dict(min_silence_duration_ms=400),
                 )
@@ -195,23 +233,41 @@ class SubtitleService:
                 if not clean_text:
                     continue
 
+                words: list[WordTiming] = []
+                if hasattr(seg, "words") and seg.words:
+                    for w in seg.words:
+                        w_text = w.word.strip()
+                        if w_text:
+                            words.append(
+                                WordTiming(
+                                    word=w_text,
+                                    start=round(w.start, 3),
+                                    end=round(w.end, 3),
+                                    probability=round(getattr(w, "probability", 1.0), 2),
+                                )
+                            )
+
+                # Wrap balanced lines for clean 2-line display on mobile & social
+                balanced_text = wrap_balanced_lines(clean_text, max_chars=32)
+
                 sub_seg = SubtitleSegment(
                     id=idx,
                     start=round(seg.start, 3),
                     end=round(seg.end, 3),
-                    text=clean_text,
+                    text=balanced_text,
+                    words=words,
                 )
                 segments.append(sub_seg)
 
                 # Build SRT block
                 srt_lines.append(f"{idx}")
                 srt_lines.append(f"{sub_seg.start_timecode_srt} --> {sub_seg.end_timecode_srt}")
-                srt_lines.append(f"{clean_text}\n")
+                srt_lines.append(f"{balanced_text}\n")
 
                 # Build VTT block
                 vtt_lines.append(f"{idx}")
                 vtt_lines.append(f"{sub_seg.start_timecode_vtt} --> {sub_seg.end_timecode_vtt}")
-                vtt_lines.append(f"{clean_text}\n")
+                vtt_lines.append(f"{balanced_text}\n")
 
             srt_content = "\n".join(srt_lines)
             vtt_content = "\n".join(vtt_lines)

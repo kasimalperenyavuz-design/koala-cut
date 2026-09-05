@@ -75,7 +75,7 @@
           <span class="font-bold text-base tracking-tight text-white">koala<span class="text-[var(--accent)]">-cut</span></span>
           <button id="btn-check-updates" title="Güncellemeleri Denetle" class="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded bg-[#18181c] hover:bg-[#222228] text-slate-400 hover:text-slate-200 font-mono font-medium border border-white/10 transition-colors cursor-pointer">
             <i data-lucide="refresh-cw" id="icon-update-refresh" class="w-2.5 h-2.5"></i>
-            <span id="header-version-text">v1.3.1</span>
+            <span id="header-version-text">v1.4.0</span>
           </button>
         </div>
         <p class="text-[10px] text-slate-400">Hızlı Video Kurgu, Ses İyileştirme ve Akıllı Sıkıştırma</p>
@@ -126,7 +126,7 @@
         <div class="space-y-2">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-medium">
             <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
-            Hızlı, Güvenli ve Tamamen Yerel Medya İşleme • v1.3.1
+            Hızlı, Güvenli ve Tamamen Yerel Medya İşleme • v1.4.0
           </div>
           <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
             Videoları Kurgulayın, İyileştirin ve <span class="text-gradient">Sıkıştırın</span>
@@ -275,9 +275,9 @@
               <!-- Secondary Overlay Video Player (For Live PIP / Multi-Layer Preview) -->
               <video id="overlay-video-player" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden z-20" muted playsinline preload="metadata"></video>
 
-              <!-- Live Subtitle Overlay Previewer -->
-              <div id="player-subtitle-overlay" class="absolute bottom-6 left-6 right-6 flex items-center justify-center text-center pointer-events-none z-[35] hidden">
-                <span id="player-subtitle-text" class="px-3 py-1.5 rounded bg-black/85 backdrop-blur-sm text-white font-bold text-xs sm:text-sm tracking-wide shadow-xl border border-white/10 max-w-[85%] inline-block transition-all"></span>
+              <!-- Live Subtitle Overlay Previewer (Video Sınırlarına Kilitli & Dikey Sürüklenebilir) -->
+              <div id="player-subtitle-overlay" class="absolute flex items-center justify-center text-center pointer-events-auto cursor-ns-resize z-[35] hidden select-none transition-[left,top,width] duration-75" title="Altyazı konumunu dikeyde ayarlamak için fareyle sürükleyin">
+                <span id="player-subtitle-text" class="px-3 py-1.5 rounded bg-black/85 backdrop-blur-sm text-white font-bold text-xs sm:text-sm tracking-wide shadow-xl border border-white/10 max-w-full inline-block transition-all pointer-events-none"></span>
               </div>
 
               <!-- Live Custom Text Overlays Container -->
@@ -394,7 +394,7 @@
           <div class="bg-[#111114] rounded-lg border border-white/10 shadow-lg overflow-hidden flex flex-col h-[520px]">
             
             <!-- Stüdyo Modülleri Sekme Başlığı -->
-            <div class="grid grid-cols-6 bg-[#09090b] border-b border-white/10 text-xs font-medium">
+            <div class="grid grid-cols-7 bg-[#09090b] border-b border-white/10 text-xs font-medium">
               <button id="tab-nav-format" class="inspector-tab-btn active py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="format">
                 <i data-lucide="ratio" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Boyut</span>
@@ -406,6 +406,10 @@
               <button id="tab-nav-clip" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="clip">
                 <i data-lucide="clapperboard" class="w-3.5 h-3.5"></i>
                 <span class="truncate">Klip</span>
+              </button>
+              <button id="tab-nav-transitions" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="transitions" title="Premiere Pro & CapCut Tarzı Geçiş Efektleri">
+                <i data-lucide="wand-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span class="truncate">Geçiş</span>
               </button>
               <button id="tab-nav-audio" class="inspector-tab-btn py-2.5 px-0.5 flex items-center justify-center gap-1 cursor-pointer" data-tab="audio">
                 <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
@@ -964,6 +968,62 @@
                   </div>
                 </div>
 
+            <!-- TAB: GEÇİŞ EFEKTLERİ STÜDYOSU (TRANSITIONS) -->
+            <div id="tab-panel-transitions" class="space-y-4 hidden">
+              <div>
+                <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <i data-lucide="wand-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  Geçiş Stüdyosu (CapCut & Premiere Pro)
+                </label>
+                <p class="text-[11px] text-slate-500">Klipler arasına sürükleyip bırakın veya seçilen kesmeye uygulayın</p>
+              </div>
+
+              <!-- Category Filter Pills -->
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-[11px]" id="transition-category-pills">
+                <button class="transition-cat-pill active px-2.5 py-1 rounded-full bg-indigo-600 text-white font-medium cursor-pointer" data-category="all">Tümü</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="basic">Temel</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="camera">Kamera</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="slide">İtme & Zoom</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="mask">Şekil & Maske</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="glitch">Glitch & Dilim</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="pack">Bulut Paketleri</button>
+                <button class="transition-cat-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer" data-category="custom">Özel</button>
+              </div>
+
+              <!-- Transitions Grid -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Dahili Geçişler (Sürükle & Bırak)</span>
+                  <span id="transitions-count-badge" class="font-mono text-indigo-400">25 Geçiş</span>
+                </div>
+                <div id="transitions-cards-grid" class="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                  <!-- Rendered dynamically by app.js -->
+                </div>
+              </div>
+
+              <!-- Cloud Transition Packs Showcase -->
+              <div class="space-y-2 pt-2 border-t border-white/10">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <i data-lucide="cloud-download" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    İndirilebilir Geçiş Paketleri (Telifsiz & Ücretsiz)
+                  </span>
+                </div>
+                <div id="transition-packs-container" class="space-y-2">
+                  <!-- Rendered dynamically by app.js -->
+                </div>
+              </div>
+
+              <!-- Custom Transition Folder Action -->
+              <div class="p-3 rounded-lg bg-[#18181c] border border-white/10 flex items-center justify-between gap-2">
+                <div class="space-y-0.5">
+                  <span class="text-xs font-semibold text-white block">Kendi Geçişlerini Ekle</span>
+                  <span class="text-[10px] text-slate-400 block">Kişisel .mp4 / .mov mat geçiş videolarınızı bu klasöre atın</span>
+                </div>
+                <button id="btn-open-custom-transitions" class="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                  <i data-lucide="folder-open" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  <span>Klasörü Aç</span>
+                </button>
               </div>
             </div>
 
@@ -1155,6 +1215,65 @@
                       <button type="button" class="subtitle-pos-btn px-1.5 py-1 rounded bg-slate-800 text-[10px] text-slate-300 hover:bg-slate-700 transition text-center" data-pos="top">Üst</button>
                       <button type="button" class="subtitle-pos-btn px-1.5 py-1 rounded bg-slate-800 text-[10px] text-slate-300 hover:bg-slate-700 transition text-center" data-pos="middle">Orta</button>
                       <button type="button" class="subtitle-pos-btn active px-1.5 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-[10px] text-white transition text-center" data-pos="bottom">Alt</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Subtitle Bounding Box & Drag Constraints (v1.4.0) -->
+                <div class="p-2.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold text-slate-200 flex items-center gap-1.5">
+                      <i data-lucide="box-select" class="w-3.5 h-3.5 text-amber-400"></i>
+                      Ekran Sınırı & Bounding Box
+                    </span>
+                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300">9:16 Taşma Önleyici</span>
+                  </div>
+
+                  <!-- Max Width Slider -->
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between text-[10px]">
+                      <span class="text-slate-400">Maksimum Genişlik (Video İçi):</span>
+                      <span id="subtitle-max-width-badge" class="font-mono text-amber-400 font-bold">%80</span>
+                    </div>
+                    <input type="range" id="slider-subtitle-max-width" min="50" max="95" step="5" value="80" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+                  </div>
+
+                  <!-- Vertical Position Slider -->
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between text-[10px]">
+                      <span class="text-slate-400">Dikey Konum (Yükseklik):</span>
+                      <span id="subtitle-y-pos-badge" class="font-mono text-amber-400 font-bold">%85</span>
+                    </div>
+                    <input type="range" id="slider-subtitle-y-pos" min="10" max="90" step="1" value="85" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg">
+                  </div>
+
+                  <p class="text-[9px] text-slate-400">
+                    💡 <span class="text-slate-300">İpucu:</span> Önizleme ekranındaki altyazıyı fareyle yukarı/aşağı sürükleyerek de anlık ayarlayabilirsiniz.
+                  </p>
+                </div>
+
+                <!-- TikTok / Reels Kinetic Karaoke Word Highlight (v1.4.0) -->
+                <div class="p-2.5 rounded-lg bg-slate-900/80 border border-amber-500/20 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-semibold text-amber-200 block">⚡ TikTok Kelime Vurgusu (Karaoke)</span>
+                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">Kinetik</span>
+                      </div>
+                      <span class="text-[10px] text-slate-400 block">Konuşulan her kelime anında parlar veya zıplar</span>
+                    </div>
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" id="check-subtitle-karaoke" class="sr-only peer">
+                      <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-500 relative"></div>
+                    </label>
+                  </div>
+
+                  <div id="subtitle-karaoke-options" class="space-y-1.5 pt-1 hidden">
+                    <label class="text-[10px] text-slate-400 block">Vurgulama Animasyon Stili:</label>
+                    <div class="grid grid-cols-3 gap-1" id="karaoke-style-group">
+                      <button type="button" class="karaoke-style-btn active px-1.5 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-[10px] text-white transition text-center" data-style="pop">Zıplama (Pop)</button>
+                      <button type="button" class="karaoke-style-btn px-1.5 py-1 rounded bg-slate-800 text-[10px] text-slate-300 hover:bg-slate-700 transition text-center" data-style="glow">Parlama (Glow)</button>
+                      <button type="button" class="karaoke-style-btn px-1.5 py-1 rounded bg-slate-800 text-[10px] text-slate-300 hover:bg-slate-700 transition text-center" data-style="box">Kutu Vurgu</button>
                     </div>
                   </div>
                 </div>
