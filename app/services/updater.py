@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 import urllib.request
 import urllib.error
+import zipfile
 
 from app.services.storage import get_storage_dirs
 
@@ -26,6 +27,21 @@ logger = logging.getLogger(__name__)
 
 CURRENT_VERSION = "1.4.0"
 DEFAULT_GITHUB_REPO = "kasimalperenyavuz-design/koala-cut"
+
+
+def get_effective_version() -> str:
+    """Return effective application version, taking dynamic patch into account."""
+    try:
+        local_appdata = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        patch_ver_file = Path(local_appdata) / "koala-cut" / "app_patch" / "version.json"
+        if patch_ver_file.is_file():
+            data = json.loads(patch_ver_file.read_text(encoding="utf-8"))
+            patch_ver = data.get("version")
+            if patch_ver and parse_version(patch_ver) >= parse_version(CURRENT_VERSION):
+                return patch_ver
+    except Exception:
+        pass
+    return CURRENT_VERSION
 
 
 def parse_version(ver_str: str) -> tuple[int, ...]:
@@ -127,19 +143,35 @@ class UpdateManager:
             }
 
         latest_tag = release_data.get("tag_name", "").lstrip("v")
+        self.current_version = get_effective_version()
         has_update = is_newer_version(latest_tag, self.current_version)
 
+        patch_asset = None
         setup_asset = None
         portable_asset = None
         for asset in release_data.get("assets", []):
             name = asset.get("name", "").lower()
-            if "setup" in name and name.endswith(".exe"):
+            if "patch" in name and name.endswith(".zip"):
+                patch_asset = asset
+            elif "setup" in name and name.endswith(".exe"):
                 setup_asset = asset
             elif name == "koala-cut.exe":
                 portable_asset = asset
 
         prefer_setup = is_installed_via_setup()
-        chosen = (setup_asset if prefer_setup and setup_asset else portable_asset) or setup_asset or portable_asset
+
+        # Priority 1: Ultra-fast delta patch (~350 KB) - instant download without redownloading 470 MB binaries
+        # Priority 2: Inno Setup installer if previously installed via setup
+        # Priority 3: Portable standalone binary
+        if patch_asset:
+            chosen = patch_asset
+            update_type = "patch"
+        elif prefer_setup and setup_asset:
+            chosen = setup_asset
+            update_type = "setup"
+        else:
+            chosen = portable_asset or setup_asset
+            update_type = "binary"
 
         download_url = chosen.get("browser_download_url") if chosen else None
         asset_name = chosen.get("name") if chosen else None
@@ -154,7 +186,8 @@ class UpdateManager:
             "download_url": download_url,
             "asset_name": asset_name,
             "asset_size": asset_size,
-            "is_setup": prefer_setup and bool(setup_asset),
+            "update_type": update_type,
+            "is_setup": update_type == "setup",
             "published_at": release_data.get("published_at"),
             "repo": self.repo,
         }
@@ -164,7 +197,7 @@ class UpdateManager:
         download_url: str,
         progress_callback: Optional[Callable[[int], None]] = None,
     ) -> bool:
-        """Download new binary and schedule Windows self-replacement or installer restart."""
+        """Download update package and execute safe restart."""
         self.progress = {
             "status": "downloading",
             "percent": 0,
@@ -186,9 +219,12 @@ class UpdateManager:
 
         current_exe = Path(sys.executable).resolve()
         exe_dir = current_exe.parent
-        is_setup = "setup" in download_url.lower()
+        is_patch = "patch" in download_url.lower() and download_url.lower().endswith(".zip")
+        is_setup = "setup" in download_url.lower() and download_url.lower().endswith(".exe")
 
-        if is_setup:
+        if is_patch:
+            target_path = Path(tempfile.gettempdir()) / "koala-cut-patch.zip"
+        elif is_setup:
             target_path = Path(tempfile.gettempdir()) / "koala-cut-setup.exe"
         else:
             target_path = exe_dir / "koala-cut.new.exe"
@@ -233,12 +269,44 @@ class UpdateManager:
         self.progress["status"] = "installing"
         self.progress["percent"] = 100
 
-        # Execute installer or swap script
-        if is_setup:
-            # Launch Inno Setup in silent mode with app restart
-            cmd = [str(target_path), "/SILENT", "/SP-", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"]
+        # Execute installer or patch extractor
+        if is_patch:
+            # 1. Unpack patch to %LOCALAPPDATA%\koala-cut\app_patch
+            local_appdata = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+            patch_dir = Path(local_appdata) / "koala-cut" / "app_patch"
+            patch_dir.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(target_path, "r") as zf:
+                zf.extractall(patch_dir)
+            logger.info("Extracted delta patch to %s", patch_dir)
+
+            # 2. Launch restart supervisor batch
+            script_path = Path(tempfile.gettempdir()) / "koala_patch_restart.bat"
+            bat_content = f"""@echo off
+timeout /t 1 /nobreak >nul
+start "" "{current_exe}"
+del "%~f0"
+"""
+            script_path.write_text(bat_content, encoding="utf-8")
             subprocess.Popen(
-                cmd,
+                ["cmd.exe", "/c", str(script_path)],
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                close_fds=True,
+            )
+        elif is_setup:
+            # Launch Inno Setup and supervisor to ensure koala-cut.exe relaunches
+            script_path = Path(tempfile.gettempdir()) / "koala_setup_supervisor.bat"
+            bat_content = f"""@echo off
+start /wait "" "{target_path}" /SILENT /SP-
+timeout /t 2 /nobreak >nul
+tasklist | findstr /i "koala-cut.exe" >nul
+if errorlevel 1 (
+    start "" "{current_exe}"
+)
+del "%~f0"
+"""
+            script_path.write_text(bat_content, encoding="utf-8")
+            subprocess.Popen(
+                ["cmd.exe", "/c", str(script_path)],
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                 close_fds=True,
             )

@@ -101,3 +101,44 @@ def test_update_progress_endpoint(client):
     assert "downloaded_bytes" in data
     assert "total_bytes" in data
 
+
+def test_check_updates_prioritizes_patch(client):
+    """Verify check_for_updates prioritizes lightweight delta patch (.zip) over 470MB installer."""
+    mock_release = {
+        "tag_name": "v1.4.1",
+        "name": "koala-cut v1.4.1",
+        "body": "Bugfix patch",
+        "published_at": "2026-09-05T00:00:00Z",
+        "assets": [
+            {
+                "name": "koala-cut-setup.exe",
+                "browser_download_url": "https://github.com/myuser/koala/releases/download/v1.4.1/koala-cut-setup.exe",
+                "size": 495000000,
+            },
+            {
+                "name": "koala-cut.exe",
+                "browser_download_url": "https://github.com/myuser/koala/releases/download/v1.4.1/koala-cut.exe",
+                "size": 388000000,
+            },
+            {
+                "name": "koala-cut-patch.zip",
+                "browser_download_url": "https://github.com/myuser/koala/releases/download/v1.4.1/koala-cut-patch.zip",
+                "size": 350000,
+            },
+        ],
+    }
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = json.dumps(mock_release).encode("utf-8")
+    mock_resp.__enter__.return_value = mock_resp
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = client.get("/api/updates/check")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["update_available"] is True
+        assert data["update_type"] == "patch"
+        assert "koala-cut-patch.zip" in data["download_url"]
+        assert data["asset_size"] == 350000
+
+

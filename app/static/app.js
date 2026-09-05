@@ -5306,6 +5306,20 @@
           dom.updateChangelog.textContent = data.changelog || 'Yeni özellikler ve optimizasyonlar.';
           dom.updateRepoLabel.textContent = `GitHub: ${data.repo}`;
 
+          // Format update type and size badge
+          const updateBtnText = dom.btnStartUpdate.querySelector('span');
+          if (updateBtnText) {
+            if (data.update_type === 'patch' && data.asset_size > 0) {
+              const szKb = (data.asset_size / 1024).toFixed(0);
+              updateBtnText.textContent = `Şimdi Güncelle (Hızlı Yama • ${szKb} KB)`;
+            } else if (data.asset_size > 0) {
+              const szMb = (data.asset_size / (1024 * 1024)).toFixed(1);
+              updateBtnText.textContent = `Şimdi Güncelle ve Yeniden Başlat (${szMb} MB)`;
+            } else {
+              updateBtnText.textContent = 'Şimdi Güncelle ve Yeniden Başlat';
+            }
+          }
+
           // Reset progress UI
           dom.updateProgressContainer.classList.add('hidden');
           dom.updateActionButtons.classList.remove('hidden');
@@ -5366,9 +5380,13 @@
               const pct = progress.percent || 0;
               dom.updateProgressBar.style.width = `${pct}%`;
               if (progress.total_bytes > 0) {
-                const dlMb = (progress.downloaded_bytes / (1024 * 1024)).toFixed(1);
-                const totMb = (progress.total_bytes / (1024 * 1024)).toFixed(1);
-                dom.updateProgressPct.textContent = `${pct}% (${dlMb} / ${totMb} MB)`;
+                const dlMb = progress.total_bytes > 1024 * 1024
+                  ? (progress.downloaded_bytes / (1024 * 1024)).toFixed(1) + ' MB'
+                  : (progress.downloaded_bytes / 1024).toFixed(0) + ' KB';
+                const totMb = progress.total_bytes > 1024 * 1024
+                  ? (progress.total_bytes / (1024 * 1024)).toFixed(1) + ' MB'
+                  : (progress.total_bytes / 1024).toFixed(0) + ' KB';
+                dom.updateProgressPct.textContent = `${pct}% (${dlMb} / ${totMb})`;
               } else {
                 dom.updateProgressPct.textContent = `${pct}%`;
               }
@@ -5378,13 +5396,33 @@
               clearInterval(pollInterval);
               dom.updateProgressBar.style.width = '100%';
               dom.updateProgressPct.textContent = '100%';
-              dom.updateProgressStatus.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i> Güncelleme kuruluyor! Yeniden başlıyor...';
+              dom.updateProgressStatus.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-emerald-400"></i> Güncelleme uygulanıyor ve koala-cut yeniden başlatılıyor...';
               refreshIcons();
               showToast('Güncelleme uygulanıyor! koala-cut yeniden başlatılıyor... 🐨', 'success');
 
-              setTimeout(() => {
-                window.location.reload();
-              }, 4000);
+              // Seamless reconnection loop - prevents Edge ERR_CONNECTION_REFUSED
+              let reconnectAttempts = 0;
+              const maxAttempts = 90; // 90 * 800ms = 72 seconds
+              const reconnectTimer = setInterval(async () => {
+                reconnectAttempts++;
+                try {
+                  const ping = await fetch('/api/updates/status?_t=' + Date.now(), { cache: 'no-store' });
+                  if (ping.ok) {
+                    clearInterval(reconnectTimer);
+                    dom.updateProgressStatus.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i> koala-cut hazır! Açılıyor...';
+                    refreshIcons();
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 600);
+                  }
+                } catch (netErr) {
+                  // App server is rebooting, silently wait for port 8000 to reopen
+                  if (reconnectAttempts > maxAttempts) {
+                    clearInterval(reconnectTimer);
+                    dom.updateProgressStatus.innerHTML = '<span class="text-amber-400">Yeniden başlatma beklenenden uzun sürdü. Lütfen sayfayı yenileyin.</span>';
+                  }
+                }
+              }, 800);
             } else if (progress.status === 'error') {
               clearInterval(pollInterval);
               throw new Error(progress.error || 'İndirme hatası oluştu');

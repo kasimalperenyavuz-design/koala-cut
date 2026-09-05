@@ -51,14 +51,26 @@ def get_storage_dirs() -> tuple[Path, Path]:
 
 UPLOAD_DIR, OUTPUT_DIR = get_storage_dirs()
 
+def _resolve_static_dir() -> Path:
+    local_appdata = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    patch_static = Path(local_appdata) / "koala-cut" / "app_patch" / "app" / "static"
+    if patch_static.is_dir() and (patch_static / "index.html").is_file():
+        return patch_static
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        bundle_dir = Path(getattr(sys, "_MEIPASS", exe_dir))
+        return bundle_dir / "app" / "static"
+    project_root = Path(__file__).resolve().parent.parent.parent
+    return project_root / "app" / "static"
+
 if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).resolve().parent
     BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", EXE_DIR))
     PROJECT_ROOT = EXE_DIR
-    STATIC_DIR = BUNDLE_DIR / "app" / "static"
 else:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-    STATIC_DIR = PROJECT_ROOT / "app" / "static"
+
+STATIC_DIR = _resolve_static_dir()
 
 # Standard chunk size for asynchronous file streaming (64 KB)
 STREAM_CHUNK_SIZE = 64 * 1024

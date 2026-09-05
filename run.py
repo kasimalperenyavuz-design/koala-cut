@@ -12,6 +12,22 @@ import traceback
 import webbrowser
 from pathlib import Path
 
+# ---------------------------------------------------------------------------
+# Dynamic Delta Patch Loader (Loads ~350 KB patches from %LOCALAPPDATA%)
+# ---------------------------------------------------------------------------
+def _apply_patch_path() -> None:
+    try:
+        local_appdata = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        patch_dir = Path(local_appdata) / "koala-cut" / "app_patch"
+        if (patch_dir / "app").is_dir():
+            patch_dir_str = str(patch_dir.resolve())
+            if patch_dir_str not in sys.path:
+                sys.path.insert(0, patch_dir_str)
+    except Exception:
+        pass
+
+_apply_patch_path()
+
 import uvicorn
 from app.main import app
 from app.services.storage import OUTPUT_DIR, UPLOAD_DIR
